@@ -7,8 +7,7 @@ import { useRegister, useGetMe, getGetMeQueryKey } from "@workspace/api-client-r
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity } from "lucide-react";
+import { Zap } from "lucide-react";
 
 const registerSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
@@ -21,102 +20,129 @@ export default function Register() {
   const { data: user, isLoading: isLoadingUser } = useGetMe({
     query: { queryKey: getGetMeQueryKey(), retry: false },
   });
-
   const registerMutation = useRegister();
 
   const form = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
-    defaultValues: {
-      username: "",
-      email: "",
-      password: "",
-    },
+    defaultValues: { username: "", email: "", password: "" },
   });
 
   useEffect(() => {
-    if (user && !isLoadingUser) {
-      setLocation("/dashboard");
-    }
+    if (user && !isLoadingUser) setLocation("/dashboard");
   }, [user, isLoadingUser, setLocation]);
 
   function onSubmit(values: z.infer<typeof registerSchema>) {
     registerMutation.mutate({ data: values }, {
-      onSuccess: () => {
-        setLocation("/dashboard");
-      }
+      onSuccess: () => setLocation("/dashboard"),
     });
   }
 
   if (isLoadingUser) return null;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background pointer-events-none" />
-      <Card className="w-full max-w-md border-border/50 bg-card/50 backdrop-blur-xl shadow-2xl relative z-10">
-        <CardHeader className="space-y-3 pb-6">
-          <div className="w-12 h-12 bg-primary/20 rounded-lg flex items-center justify-center mb-2 mx-auto border border-primary/30">
-            <Activity className="w-6 h-6 text-primary" />
+    <div className="min-h-screen flex" style={{ background: "#f0ede8" }}>
+      {/* Left branding panel */}
+      <div className="hidden lg:flex flex-col justify-between w-96 p-10" style={{ background: "#1f1f2e" }}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "#ff6c00" }}>
+            <Zap className="w-5 h-5 text-white" />
           </div>
-          <CardTitle className="text-2xl font-bold text-center tracking-tight font-mono">GEN_OPS</CardTitle>
-          <CardDescription className="text-center text-muted-foreground font-mono text-sm uppercase tracking-wider">
-            Operator Registration
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="username"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Desired Operator ID</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter username" className="font-mono bg-background/50" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Comms Link (Email)</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="Enter email" className="font-mono bg-background/50" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Access Code</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="Create password" className="font-mono bg-background/50" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" className="w-full font-mono uppercase tracking-wider mt-4" disabled={registerMutation.isPending}>
-                {registerMutation.isPending ? "Registering..." : "Request Clearance"}
-              </Button>
-            </form>
-          </Form>
-          <div className="mt-6 text-center text-sm font-mono">
-            <span className="text-muted-foreground">Existing operator? </span>
-            <Link href="/login" className="text-primary hover:text-primary/80 transition-colors underline decoration-primary/30 underline-offset-4">
-              Return to login
+          <span className="text-white font-bold text-xl tracking-tight">GenOps</span>
+        </div>
+        <div>
+          <h2 className="text-white text-3xl font-bold leading-snug mb-3">
+            Create your<br />operator account
+          </h2>
+          <p style={{ color: "#9ca3af" }} className="text-sm leading-relaxed">
+            Join the team and get full access to the generator management dashboard and real-time Google Sheets sync.
+          </p>
+        </div>
+        <div style={{ color: "#6b7280" }} className="text-xs">
+          &copy; {new Date().getFullYear()} GenOps. All rights reserved.
+        </div>
+      </div>
+
+      {/* Right register form */}
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="w-full max-w-sm">
+          <div className="flex items-center gap-3 mb-8 lg:hidden">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "#ff6c00" }}>
+              <Zap className="w-4 h-4 text-white" />
+            </div>
+            <span className="font-bold text-xl" style={{ color: "#1f1f2e" }}>GenOps</span>
+          </div>
+
+          <h1 className="text-2xl font-bold mb-1" style={{ color: "#1f1f2e" }}>Create account</h1>
+          <p className="text-sm mb-8" style={{ color: "#6b7280" }}>Fill in your details to get started</p>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            {registerMutation.isError && (
+              <div className="mb-4 px-4 py-3 rounded-lg text-sm font-medium" style={{ background: "#fff1f0", color: "#cf1322", border: "1px solid #ffa39e" }}>
+                Username already taken. Try a different one.
+              </div>
+            )}
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+                <FormField
+                  control={form.control}
+                  name="username"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-sm font-medium" style={{ color: "#374151" }}>Username</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Choose a username" className="h-10 bg-white border-gray-300" data-testid="input-username" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-sm font-medium" style={{ color: "#374151" }}>Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="Enter your email" className="h-10 bg-white border-gray-300" data-testid="input-email" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-sm font-medium" style={{ color: "#374151" }}>Password</FormLabel>
+                      <FormControl>
+                        <Input type="password" placeholder="Create a password (min 6 chars)" className="h-10 bg-white border-gray-300" data-testid="input-password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button
+                  type="submit"
+                  className="w-full h-10 font-semibold text-white rounded-lg"
+                  style={{ background: "#ff6c00" }}
+                  disabled={registerMutation.isPending}
+                  data-testid="button-register"
+                >
+                  {registerMutation.isPending ? "Creating account..." : "Create Account"}
+                </Button>
+              </form>
+            </Form>
+          </div>
+
+          <p className="text-center text-sm mt-6" style={{ color: "#6b7280" }}>
+            Already have an account?{" "}
+            <Link href="/login" className="font-semibold" style={{ color: "#ff6c00" }}>
+              Sign in
             </Link>
-          </div>
-        </CardContent>
-      </Card>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

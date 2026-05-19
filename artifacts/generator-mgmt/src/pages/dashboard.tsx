@@ -1,30 +1,27 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
-import { 
-  useGetMe, getGetMeQueryKey, 
-  useLogout, 
+import {
+  useGetMe, getGetMeQueryKey,
+  useLogout,
   useListGenerators, getListGeneratorsQueryKey,
   useGetGeneratorStats, getGetGeneratorStatsQueryKey,
   useCreateGenerator, useUpdateGenerator, useDeleteGenerator
 } from "@workspace/api-client-react";
 import { GeneratorRecord } from "@workspace/api-client-react/src/generated/api.schemas";
-
-import { Activity, LogOut, Plus, Search, Filter, MoreHorizontal, Edit2, Trash2 } from "lucide-react";
+import {
+  Zap, LogOut, Plus, Search, Edit2, Trash2,
+  Activity, Clock, TrendingUp, Database, ChevronDown, X
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { motion, AnimatePresence } from "framer-motion";
 
 const formSchema = z.object({
   tDate: z.string().min(1, "Date is required"),
@@ -35,404 +32,527 @@ const formSchema = z.object({
   remarks: z.string().optional().nullable(),
 });
 
+type FormValues = z.infer<typeof formSchema>;
+
+const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string }> = {
+  Running:     { bg: "#f0fdf4", text: "#15803d", dot: "#22c55e" },
+  Stopped:     { bg: "#fef2f2", text: "#dc2626", dot: "#ef4444" },
+  Maintenance: { bg: "#fffbeb", text: "#d97706", dot: "#f59e0b" },
+  Fault:       { bg: "#fff1f2", text: "#be123c", dot: "#f43f5e" },
+  Idle:        { bg: "#f8fafc", text: "#64748b", dot: "#94a3b8" },
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG["Idle"];
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold"
+      style={{ background: cfg.bg, color: cfg.text }}
+    >
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg.dot }} />
+      {status}
+    </span>
+  );
+}
+
+function StatCard({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: string | number; accent?: string }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4 shadow-sm">
+      <div className="w-11 h-11 rounded-lg flex items-center justify-center" style={{ background: accent ? `${accent}15` : "#ff6c0015" }}>
+        <span style={{ color: accent ?? "#ff6c00" }}>{icon}</span>
+      </div>
+      <div>
+        <p className="text-xs font-medium uppercase tracking-wide" style={{ color: "#9ca3af" }}>{label}</p>
+        <p className="text-2xl font-bold mt-0.5" style={{ color: "#111827" }}>{value}</p>
+      </div>
+    </div>
+  );
+}
+
+const TODAY = new Date().toISOString().split("T")[0];
+
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
+
   const { data: user, isLoading: isLoadingUser, isError: isUserError } = useGetMe({
     query: { queryKey: getGetMeQueryKey(), retry: false },
   });
   const logoutMutation = useLogout();
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  
-  const { data: stats } = useGetGeneratorStats({
-    query: { queryKey: getGetGeneratorStatsQueryKey() }
-  });
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<GeneratorRecord | null>(null);
 
-  const { data: generators, isLoading: isLoadingGenerators } = useListGenerators({
-    search: search || undefined,
-    status: statusFilter !== "all" ? statusFilter : undefined
-  }, {
-    query: { queryKey: getListGeneratorsQueryKey({ search: search || undefined, status: statusFilter !== "all" ? statusFilter : undefined }) }
-  });
+  const { data: stats } = useGetGeneratorStats({ query: { queryKey: getGetGeneratorStatsQueryKey() } });
+  const { data: generators, isLoading: isLoadingGenerators } = useListGenerators(
+    { search: search || undefined, status: statusFilter !== "all" ? statusFilter : undefined },
+    { query: { queryKey: getListGeneratorsQueryKey({ search: search || undefined, status: statusFilter !== "all" ? statusFilter : undefined }) } }
+  );
 
   const createMutation = useCreateGenerator();
   const updateMutation = useUpdateGenerator();
   const deleteMutation = useDeleteGenerator();
 
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<GeneratorRecord | null>(null);
-
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      tDate: format(new Date(), "yyyy-MM-dd"),
-      generatorId: "",
-      status: "Running",
-      rating: "",
-      hours: 0,
-      remarks: "",
-    },
+    defaultValues: { tDate: TODAY, generatorId: "", status: "Running", rating: "", hours: 0, remarks: "" },
   });
 
   useEffect(() => {
-    if (isUserError || (!user && !isLoadingUser)) {
-      setLocation("/login");
-    }
+    if (isUserError || (!user && !isLoadingUser)) setLocation("/login");
   }, [user, isLoadingUser, isUserError, setLocation]);
 
-  const handleLogout = () => {
-    logoutMutation.mutate(undefined, {
-      onSuccess: () => {
-        queryClient.clear();
-        setLocation("/login");
-      }
-    });
+  const openAdd = () => {
+    setEditingRecord(null);
+    form.reset({ tDate: TODAY, generatorId: "", status: "Running", rating: "", hours: 0, remarks: "" });
+    setIsFormOpen(true);
   };
 
-  const handleEdit = (record: GeneratorRecord) => {
+  const openEdit = (record: GeneratorRecord) => {
     setEditingRecord(record);
     form.reset({
       tDate: record.tDate,
       generatorId: record.generatorId,
       status: record.status,
-      rating: record.rating || "",
-      hours: record.hours || 0,
-      remarks: record.remarks || "",
+      rating: record.rating ?? "",
+      hours: record.hours ?? 0,
+      remarks: record.remarks ?? "",
     });
     setIsFormOpen(true);
   };
 
   const handleDelete = (id: number) => {
-    if (window.confirm("Delete this record?")) {
-      deleteMutation.mutate({ id }, {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListGeneratorsQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getGetGeneratorStatsQueryKey() });
-        }
-      });
-    }
+    if (!window.confirm("Delete this record? This cannot be undone.")) return;
+    deleteMutation.mutate({ id }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListGeneratorsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetGeneratorStatsQueryKey() });
+      },
+    });
   };
 
-  const onSubmitForm = (values: z.infer<typeof formSchema>) => {
+  const handleLogout = () => {
+    logoutMutation.mutate(undefined, {
+      onSuccess: () => { queryClient.clear(); setLocation("/login"); },
+    });
+  };
+
+  const onSubmit = (values: FormValues) => {
     const payload = {
       ...values,
       rating: values.rating || undefined,
-      hours: values.hours || undefined,
+      hours: values.hours ?? undefined,
       remarks: values.remarks || undefined,
     };
+    const invalidate = () => {
+      queryClient.invalidateQueries({ queryKey: getListGeneratorsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetGeneratorStatsQueryKey() });
+      setIsFormOpen(false);
+      setEditingRecord(null);
+    };
     if (editingRecord) {
-      updateMutation.mutate({ id: editingRecord.id, data: payload }, {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListGeneratorsQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getGetGeneratorStatsQueryKey() });
-          setIsFormOpen(false);
-        }
-      });
+      updateMutation.mutate({ id: editingRecord.id, data: payload }, { onSuccess: invalidate });
     } else {
-      createMutation.mutate({ data: payload }, {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListGeneratorsQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getGetGeneratorStatsQueryKey() });
-          setIsFormOpen(false);
-        }
-      });
+      createMutation.mutate({ data: payload }, { onSuccess: invalidate });
     }
   };
 
   if (isLoadingUser || !user) return null;
 
+  const isPending = createMutation.isPending || updateMutation.isPending;
+
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
-      {/* Topbar */}
-      <header className="border-b border-border/50 bg-card/30 backdrop-blur sticky top-0 z-20">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary/20 rounded flex items-center justify-center border border-primary/30">
-              <Activity className="w-4 h-4 text-primary" />
+    <div className="min-h-screen flex flex-col" style={{ background: "#f5f5f5" }}>
+
+      {/* Top navigation bar */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
+        <div className="max-w-screen-xl mx-auto px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#ff6c00" }}>
+              <Zap className="w-4 h-4 text-white" />
             </div>
-            <span className="font-mono font-bold tracking-tight text-lg">GEN_OPS</span>
+            <span className="font-bold text-lg tracking-tight" style={{ color: "#1f1f2e" }}>GenOps</span>
+            <span className="hidden md:inline-block ml-2 text-xs font-medium px-2 py-0.5 rounded" style={{ background: "#fff7ed", color: "#ff6c00" }}>
+              Dashboard
+            </span>
           </div>
           <div className="flex items-center gap-4">
-            <span className="font-mono text-sm text-muted-foreground hidden md:inline-block">
-              OP: {user.username}
-            </span>
-            <Button variant="ghost" size="icon" onClick={handleLogout} className="text-muted-foreground hover:text-foreground">
+            <div className="hidden md:flex items-center gap-2 text-sm" style={{ color: "#6b7280" }}>
+              <div className="w-7 h-7 rounded-full flex items-center justify-center font-semibold text-white text-xs" style={{ background: "#ff6c00" }}>
+                {user.username[0].toUpperCase()}
+              </div>
+              <span className="font-medium" style={{ color: "#374151" }}>{user.username}</span>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              style={{ color: "#6b7280" }}
+              data-testid="button-logout"
+            >
               <LogOut className="w-4 h-4" />
-            </Button>
+              <span className="hidden md:inline">Logout</span>
+            </button>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 container mx-auto px-4 py-8 flex flex-col gap-6">
-        
-        {/* Stats Row */}
+      <main className="flex-1 max-w-screen-xl mx-auto w-full px-6 py-8 flex flex-col gap-6">
+
+        {/* Page title */}
+        <div>
+          <h1 className="text-2xl font-bold" style={{ color: "#111827" }}>Generator Records</h1>
+          <p className="text-sm mt-1" style={{ color: "#6b7280" }}>All entries are synced to your Google Sheet automatically.</p>
+        </div>
+
+        {/* Stat cards */}
         {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card className="bg-card/40 border-border/50">
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Total Records</CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <div className="text-2xl font-mono">{stats.total}</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-card/40 border-border/50">
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Recent (7d)</CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <div className="text-2xl font-mono text-primary">{stats.recentCount}</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-card/40 border-border/50">
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Avg Hours</CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <div className="text-2xl font-mono">{stats.avgHours ? Math.round(stats.avgHours) : 0}</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-card/40 border-border/50">
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Status Breakdown</CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-0 flex flex-wrap gap-2">
-                {stats.byStatus.map(s => (
-                  <div key={s.status} className="flex items-center gap-1 text-sm font-mono">
-                    <span className="text-muted-foreground">{s.status}:</span>
-                    <span>{s.count}</span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard icon={<Database className="w-5 h-5" />} label="Total Records" value={stats.total} />
+            <StatCard icon={<Activity className="w-5 h-5" />} label="This Week" value={stats.recentCount} accent="#7c3aed" />
+            <StatCard icon={<Clock className="w-5 h-5" />} label="Avg Hours" value={stats.avgHours != null ? `${Math.round(stats.avgHours)}h` : "-"} accent="#0891b2" />
+            <StatCard
+              icon={<TrendingUp className="w-5 h-5" />}
+              label="Running Now"
+              value={stats.byStatus.find(s => s.status === "Running")?.count ?? 0}
+              accent="#15803d"
+            />
           </div>
         )}
 
-        {/* Toolbar */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-card/20 p-4 rounded-lg border border-border/50">
-          <div className="flex gap-2 w-full sm:w-auto">
-            <div className="relative flex-1 sm:w-64">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input 
-                placeholder="Search ID or remarks..." 
-                className="pl-9 font-mono bg-background/50 text-sm"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-32 font-mono bg-background/50">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="Running">Running</SelectItem>
-                <SelectItem value="Stopped">Stopped</SelectItem>
-                <SelectItem value="Maintenance">Maintenance</SelectItem>
-                <SelectItem value="Fault">Fault</SelectItem>
-                <SelectItem value="Idle">Idle</SelectItem>
-              </SelectContent>
-            </Select>
+        {/* Status breakdown pills */}
+        {stats && stats.byStatus.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {stats.byStatus.map(s => (
+              <button
+                key={s.status}
+                onClick={() => setStatusFilter(statusFilter === s.status ? "all" : s.status)}
+                className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border transition-all"
+                style={{
+                  background: statusFilter === s.status ? (STATUS_CONFIG[s.status]?.bg ?? "#f8fafc") : "#fff",
+                  color: STATUS_CONFIG[s.status]?.text ?? "#64748b",
+                  borderColor: statusFilter === s.status ? (STATUS_CONFIG[s.status]?.dot ?? "#94a3b8") : "#e5e7eb",
+                }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: STATUS_CONFIG[s.status]?.dot ?? "#94a3b8" }} />
+                {s.status}: {s.count}
+              </button>
+            ))}
           </div>
-          <Button onClick={() => { setEditingRecord(null); form.reset({ tDate: format(new Date(), "yyyy-MM-dd"), generatorId: "", status: "Running", rating: "", hours: 0, remarks: "" }); setIsFormOpen(true); }} className="w-full sm:w-auto font-mono tracking-wide">
-            <Plus className="w-4 h-4 mr-2" />
-            Log Entry
-          </Button>
-        </div>
+        )}
 
-        {/* Data Table */}
-        <div className="border border-border/50 rounded-lg overflow-hidden bg-card/30">
-          <Table>
-            <TableHeader className="bg-muted/30">
-              <TableRow>
-                <TableHead className="font-mono text-xs uppercase tracking-wider w-32">Date</TableHead>
-                <TableHead className="font-mono text-xs uppercase tracking-wider w-40">Gen ID</TableHead>
-                <TableHead className="font-mono text-xs uppercase tracking-wider w-32">Status</TableHead>
-                <TableHead className="font-mono text-xs uppercase tracking-wider w-24">Rating</TableHead>
-                <TableHead className="font-mono text-xs uppercase tracking-wider w-24 text-right">Hours</TableHead>
-                <TableHead className="font-mono text-xs uppercase tracking-wider">Remarks</TableHead>
-                <TableHead className="w-16"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoadingGenerators ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center font-mono text-muted-foreground">
-                    Fetching records...
-                  </TableCell>
-                </TableRow>
-              ) : generators && generators.length > 0 ? (
-                generators.map((record) => (
-                  <TableRow key={record.id} className="hover:bg-muted/20">
-                    <TableCell className="font-mono text-sm">{record.tDate}</TableCell>
-                    <TableCell className="font-mono text-sm font-medium">{record.generatorId}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={`font-mono text-xs uppercase rounded-sm border ${
-                        record.status === "Running" ? "text-success border-success/30 bg-success/10" :
-                        record.status === "Stopped" ? "text-destructive border-destructive/30 bg-destructive/10" :
-                        record.status === "Maintenance" ? "text-warning border-warning/30 bg-warning/10" :
-                        record.status === "Fault" ? "text-destructive border-destructive/30 bg-destructive/20 font-bold" :
-                        "text-muted-foreground border-border bg-muted/20"
-                      }`}>
-                        {record.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-mono text-sm text-muted-foreground">{record.rating || "-"}</TableCell>
-                    <TableCell className="font-mono text-sm text-right">{record.hours || "-"}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground truncate max-w-xs">{record.remarks}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-32 font-mono">
-                          <DropdownMenuItem onClick={() => handleEdit(record)}>
-                            <Edit2 className="w-4 h-4 mr-2" /> Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDelete(record.id)} className="text-destructive focus:bg-destructive/10">
-                            <Trash2 className="w-4 h-4 mr-2" /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center font-mono text-muted-foreground">
-                    No records found
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+        {/* Table card */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          {/* Toolbar */}
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between px-5 py-4 border-b border-gray-100">
+            <div className="flex gap-3 flex-1 w-full sm:w-auto">
+              <div className="relative flex-1 sm:w-64">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#9ca3af" }} />
+                <Input
+                  placeholder="Search by ID, date or remarks..."
+                  className="pl-9 h-9 text-sm bg-gray-50 border-gray-200"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  data-testid="input-search"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-36 h-9 text-sm bg-gray-50 border-gray-200" data-testid="select-status-filter">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="Running">Running</SelectItem>
+                  <SelectItem value="Stopped">Stopped</SelectItem>
+                  <SelectItem value="Maintenance">Maintenance</SelectItem>
+                  <SelectItem value="Fault">Fault</SelectItem>
+                  <SelectItem value="Idle">Idle</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              onClick={openAdd}
+              className="h-9 px-4 text-sm font-semibold text-white rounded-lg flex items-center gap-2 whitespace-nowrap"
+              style={{ background: "#ff6c00" }}
+              data-testid="button-add-record"
+            >
+              <Plus className="w-4 h-4" />
+              Add Record
+            </Button>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                  {["Date", "Generator ID", "Status", "Rating", "Hours", "Remarks", ""].map(h => (
+                    <th key={h} className="text-left px-5 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: "#6b7280" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {isLoadingGenerators ? (
+                  <tr>
+                    <td colSpan={7} className="px-5 py-12 text-center text-sm" style={{ color: "#9ca3af" }}>
+                      Loading records...
+                    </td>
+                  </tr>
+                ) : generators && generators.length > 0 ? (
+                  generators.map((record, idx) => (
+                    <tr
+                      key={record.id}
+                      style={{ borderBottom: idx < generators.length - 1 ? "1px solid #f3f4f6" : "none" }}
+                      className="hover:bg-orange-50/40 transition-colors"
+                      data-testid={`row-generator-${record.id}`}
+                    >
+                      <td className="px-5 py-3.5 font-medium" style={{ color: "#374151" }}>{record.tDate}</td>
+                      <td className="px-5 py-3.5">
+                        <span className="font-semibold" style={{ color: "#111827" }}>{record.generatorId}</span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <StatusBadge status={record.status} />
+                      </td>
+                      <td className="px-5 py-3.5" style={{ color: "#6b7280" }}>{record.rating || "-"}</td>
+                      <td className="px-5 py-3.5 font-medium" style={{ color: "#374151" }}>{record.hours != null ? `${record.hours}h` : "-"}</td>
+                      <td className="px-5 py-3.5 max-w-xs truncate" style={{ color: "#6b7280" }}>{record.remarks || "-"}</td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => openEdit(record)}
+                            className="p-1.5 rounded-lg hover:bg-blue-50 transition-colors"
+                            title="Edit"
+                            data-testid={`button-edit-${record.id}`}
+                          >
+                            <Edit2 className="w-3.5 h-3.5" style={{ color: "#3b82f6" }} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(record.id)}
+                            className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                            title="Delete"
+                            data-testid={`button-delete-${record.id}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" style={{ color: "#ef4444" }} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="px-5 py-16 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "#fff7ed" }}>
+                          <Database className="w-6 h-6" style={{ color: "#ff6c00" }} />
+                        </div>
+                        <p className="text-sm font-medium" style={{ color: "#374151" }}>No records found</p>
+                        <p className="text-xs" style={{ color: "#9ca3af" }}>Click "Add Record" to create your first entry</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {generators && generators.length > 0 && (
+            <div className="px-5 py-3 border-t border-gray-100 text-xs" style={{ color: "#9ca3af" }}>
+              Showing {generators.length} record{generators.length !== 1 ? "s" : ""}
+            </div>
+          )}
         </div>
       </main>
 
-      {/* Form Sheet */}
-      <Sheet open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <SheetContent className="bg-card border-l border-border/50 sm:max-w-md w-full">
-          <SheetHeader className="mb-6">
-            <SheetTitle className="font-mono text-xl tracking-tight">
-              {editingRecord ? "Edit Record" : "New Log Entry"}
-            </SheetTitle>
-            <SheetDescription className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
-              Update generator telemetry and status.
-            </SheetDescription>
-          </SheetHeader>
-
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmitForm)} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="tDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Date</FormLabel>
-                      <FormControl>
-                        <Input type="date" className="font-mono bg-background/50" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="generatorId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Gen ID</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g. GEN-01" className="font-mono bg-background/50 uppercase" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+      {/* Slide-over form panel */}
+      <AnimatePresence>
+        {isFormOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-30"
+              style={{ background: "rgba(0,0,0,0.35)" }}
+              onClick={() => setIsFormOpen(false)}
+            />
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="fixed right-0 top-0 h-full w-full sm:w-[460px] z-40 flex flex-col shadow-2xl"
+              style={{ background: "#fff" }}
+            >
+              {/* Panel header */}
+              <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+                <div>
+                  <h2 className="text-lg font-bold" style={{ color: "#111827" }}>
+                    {editingRecord ? "Edit Record" : "New Generator Record"}
+                  </h2>
+                  <p className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>
+                    {editingRecord ? "Update the record details below" : "Fill in the details and save to sync with Google Sheets"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsFormOpen(false)}
+                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  data-testid="button-close-form"
+                >
+                  <X className="w-5 h-5" style={{ color: "#6b7280" }} />
+                </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Status</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="font-mono bg-background/50">
-                            <SelectValue placeholder="Select status" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Running">Running</SelectItem>
-                          <SelectItem value="Stopped">Stopped</SelectItem>
-                          <SelectItem value="Maintenance">Maintenance</SelectItem>
-                          <SelectItem value="Fault">Fault</SelectItem>
-                          <SelectItem value="Idle">Idle</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="hours"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Op Hours</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.1" className="font-mono bg-background/50" {...field} value={field.value ?? ""} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              {/* Panel body */}
+              <div className="flex-1 overflow-y-auto px-6 py-6">
+                <Form {...form}>
+                  <form id="generator-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="tDate"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-medium" style={{ color: "#374151" }}>Date</FormLabel>
+                            <FormControl>
+                              <Input type="date" className="h-10 bg-gray-50 border-gray-200" data-testid="input-date" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="generatorId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-medium" style={{ color: "#374151" }}>Generator ID</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g. GEN-001" className="h-10 bg-gray-50 border-gray-200" data-testid="input-generator-id" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="status"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-medium" style={{ color: "#374151" }}>Status</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger className="h-10 bg-gray-50 border-gray-200" data-testid="select-status">
+                                  <SelectValue placeholder="Select status" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="Running">Running</SelectItem>
+                                <SelectItem value="Stopped">Stopped</SelectItem>
+                                <SelectItem value="Maintenance">Maintenance</SelectItem>
+                                <SelectItem value="Fault">Fault</SelectItem>
+                                <SelectItem value="Idle">Idle</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="hours"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-medium" style={{ color: "#374151" }}>Hours</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                placeholder="0"
+                                className="h-10 bg-gray-50 border-gray-200"
+                                data-testid="input-hours"
+                                {...field}
+                                value={field.value ?? ""}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="rating"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm font-medium" style={{ color: "#374151" }}>Rating</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="e.g. 500kVA, Good, Excellent"
+                              className="h-10 bg-gray-50 border-gray-200"
+                              data-testid="input-rating"
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="remarks"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm font-medium" style={{ color: "#374151" }}>Remarks</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Enter any notes or observations..."
+                              className="bg-gray-50 border-gray-200 min-h-28 resize-none"
+                              data-testid="input-remarks"
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </form>
+                </Form>
               </div>
 
-              <FormField
-                control={form.control}
-                name="rating"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Rating/Load</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. 500kVA" className="font-mono bg-background/50" {...field} value={field.value ?? ""} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="remarks"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Remarks / Telemetry</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Enter operational notes..." className="font-mono min-h-32 resize-none bg-background/50" {...field} value={field.value ?? ""} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="pt-4">
-                <Button type="submit" className="w-full font-mono uppercase tracking-widest" disabled={createMutation.isPending || updateMutation.isPending}>
-                  {createMutation.isPending || updateMutation.isPending ? "Transmitting..." : "Commit Record"}
+              {/* Panel footer */}
+              <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1 h-10 border-gray-200"
+                  onClick={() => setIsFormOpen(false)}
+                  data-testid="button-cancel"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  form="generator-form"
+                  className="flex-1 h-10 font-semibold text-white"
+                  style={{ background: "#ff6c00" }}
+                  disabled={isPending}
+                  data-testid="button-save"
+                >
+                  {isPending ? "Saving..." : editingRecord ? "Update Record" : "Save Record"}
                 </Button>
               </div>
-            </form>
-          </Form>
-        </SheetContent>
-      </Sheet>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
