@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, and, gte, lte, or, sql } from "drizzle-orm";
+import { eq, ilike, and, gte, lte, or } from "drizzle-orm";
 import { db, generatorsTable } from "@workspace/db";
 import {
   ListGeneratorsQueryParams,
@@ -9,7 +9,7 @@ import {
   UpdateGeneratorBody,
   DeleteGeneratorParams,
 } from "@workspace/api-zod";
-import { appendRowToSheet, updateRowInSheet, deleteRowInSheet } from "../lib/sheets";
+import { syncSheetFromDb } from "../lib/sheets";
 
 const router: IRouter = Router();
 
@@ -20,6 +20,13 @@ function requireAuth(req: any, res: any): number | null {
     return null;
   }
   return userId;
+}
+
+async function getAllRowsForSync() {
+  return db
+    .select()
+    .from(generatorsTable)
+    .orderBy(generatorsTable.tDate, generatorsTable.generatorId);
 }
 
 router.get("/generators", async (req, res): Promise<void> => {
@@ -52,7 +59,7 @@ router.get("/generators", async (req, res): Promise<void> => {
     .select()
     .from(generatorsTable)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(generatorsTable.createdAt);
+    .orderBy(generatorsTable.tDate, generatorsTable.generatorId);
 
   res.json(rows.map(r => ({
     ...r,
@@ -102,15 +109,8 @@ router.post("/generators", async (req, res): Promise<void> => {
 
   const [record] = await db.insert(generatorsTable).values(parsed.data).returning();
 
-  // Sync to Google Sheet
-  appendRowToSheet([
-    record.tDate,
-    record.generatorId,
-    record.status,
-    record.rating ?? "",
-    record.hours ?? "",
-    record.remarks ?? "",
-  ]).catch(() => {});
+  // Rebuild sheet from full DB state
+  getAllRowsForSync().then(rows => syncSheetFromDb(rows)).catch(() => {});
 
   res.status(201).json({
     ...record,
@@ -167,16 +167,8 @@ router.patch("/generators/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  // Sync update to Google Sheet — find row by generatorId match (row = id + 1 for header)
-  // Use id+1 as a best-effort row index (header is row 1, first data row is 2)
-  updateRowInSheet(record.id + 1, [
-    record.tDate,
-    record.generatorId,
-    record.status,
-    record.rating ?? "",
-    record.hours ?? "",
-    record.remarks ?? "",
-  ]).catch(() => {});
+  // Rebuild sheet from full DB state
+  getAllRowsForSync().then(rows => syncSheetFromDb(rows)).catch(() => {});
 
   res.json({
     ...record,
@@ -204,8 +196,8 @@ router.delete("/generators/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  // Sync delete to Google Sheet
-  deleteRowInSheet(record.id + 1).catch(() => {});
+  // Rebuild sheet from remaining DB rows — if empty, sheet will only have headers
+  getAllRowsForSync().then(rows => syncSheetFromDb(rows)).catch(() => {});
 
   res.json({ message: "Deleted" });
 });

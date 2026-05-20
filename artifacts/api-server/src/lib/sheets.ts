@@ -3,99 +3,64 @@ import { logger } from "./logger";
 
 const SPREADSHEET_ID = "1Px5UEwvvkg0fJJcRXOdJnIIspOqf9EwWPKkHIPrzSmY";
 const SHEET_NAME = "Sheet1";
+const HEADERS = ["Date", "Generator ID", "Status", "Rating", "Hours", "Remarks"];
 
 function getAuth() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!raw) {
-    throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON is not set");
-  }
-  const creds = JSON.parse(raw);
+  if (!raw) throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON is not set");
   return new google.auth.GoogleAuth({
-    credentials: creds,
+    credentials: JSON.parse(raw),
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
 }
 
-export async function appendRowToSheet(row: (string | number | null | undefined)[]) {
+type SheetRow = {
+  tDate: string;
+  generatorId: string;
+  status: string;
+  rating?: string | null;
+  hours?: number | null;
+  remarks?: string | null;
+};
+
+/**
+ * Fully rebuilds the Google Sheet from the current DB rows.
+ * This is the only sync function used — no row-index guessing needed.
+ * Row 1 = headers, rows 2+ = data sorted by date then generatorId.
+ */
+export async function syncSheetFromDb(rows: SheetRow[]): Promise<void> {
   try {
     const auth = getAuth();
     const sheets = google.sheets({ version: "v4", auth });
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A:F`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [row.map((v) => (v == null ? "" : String(v)))],
-      },
-    });
-  } catch (err) {
-    logger.error({ err }, "Failed to append row to Google Sheet");
-  }
-}
 
-export async function updateRowInSheet(rowIndex: number, row: (string | number | null | undefined)[]) {
-  try {
-    const auth = getAuth();
-    const sheets = google.sheets({ version: "v4", auth });
-    // rowIndex is 1-based, row 1 is header
-    const range = `${SHEET_NAME}!A${rowIndex}:F${rowIndex}`;
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
-      range,
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [row.map((v) => (v == null ? "" : String(v)))],
-      },
-    });
-  } catch (err) {
-    logger.error({ err }, "Failed to update row in Google Sheet");
-  }
-}
+    const values: string[][] = [
+      HEADERS,
+      ...rows.map((r) => [
+        r.tDate ?? "",
+        r.generatorId ?? "",
+        r.status ?? "",
+        r.rating ?? "",
+        r.hours != null ? String(r.hours) : "",
+        r.remarks ?? "",
+      ]),
+    ];
 
-export async function deleteRowInSheet(rowIndex: number) {
-  try {
-    const auth = getAuth();
-    const sheets = google.sheets({ version: "v4", auth });
-    // Get sheet ID first
-    const meta = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
-    const sheet = meta.data.sheets?.find(
-      (s) => s.properties?.title === SHEET_NAME
-    );
-    const sheetId = sheet?.properties?.sheetId ?? 0;
-
-    await sheets.spreadsheets.batchUpdate({
+    // Clear entire sheet first
+    await sheets.spreadsheets.values.clear({
       spreadsheetId: SPREADSHEET_ID,
-      requestBody: {
-        requests: [
-          {
-            deleteDimension: {
-              range: {
-                sheetId,
-                dimension: "ROWS",
-                startIndex: rowIndex - 1, // 0-based
-                endIndex: rowIndex,
-              },
-            },
-          },
-        ],
-      },
+      range: `${SHEET_NAME}`,
     });
-  } catch (err) {
-    logger.error({ err }, "Failed to delete row in Google Sheet");
-  }
-}
 
-export async function getAllSheetRows(): Promise<string[][]> {
-  try {
-    const auth = getAuth();
-    const sheets = google.sheets({ version: "v4", auth });
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A:F`,
-    });
-    return (res.data.values as string[][]) ?? [];
+    // Write fresh data
+    if (values.length > 0) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${SHEET_NAME}!A1`,
+        valueInputOption: "USER_ENTERED",
+        requestBody: { values },
+      });
+    }
   } catch (err) {
-    logger.error({ err }, "Failed to read rows from Google Sheet");
-    return [];
+    logger.error({ err }, "Failed to sync sheet from DB");
   }
 }
