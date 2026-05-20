@@ -35,15 +35,14 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string }> = {
-  Running:     { bg: "#f0fdf4", text: "#15803d", dot: "#22c55e" },
-  Stopped:     { bg: "#fef2f2", text: "#dc2626", dot: "#ef4444" },
-  Maintenance: { bg: "#fffbeb", text: "#d97706", dot: "#f59e0b" },
-  Fault:       { bg: "#fff1f2", text: "#be123c", dot: "#f43f5e" },
-  Idle:        { bg: "#f8fafc", text: "#64748b", dot: "#94a3b8" },
+  "Ready":            { bg: "#f0fdf4", text: "#15803d", dot: "#22c55e" },
+  "Under Repair":     { bg: "#fffbeb", text: "#d97706", dot: "#f59e0b" },
+  "Under Readiness":  { bg: "#eff6ff", text: "#1d4ed8", dot: "#3b82f6" },
+  "Other":            { bg: "#f8fafc", text: "#64748b", dot: "#94a3b8" },
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG["Idle"];
+  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG["Other"];
   return (
     <span
       className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold"
@@ -97,7 +96,7 @@ export default function Dashboard() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { tDate: TODAY, generatorId: "", status: "Running", rating: "", hours: 0, remarks: "" },
+    defaultValues: { tDate: TODAY, generatorId: "", status: "Ready", rating: "", hours: 0, remarks: "" },
   });
 
   useEffect(() => {
@@ -106,7 +105,7 @@ export default function Dashboard() {
 
   const openAdd = () => {
     setEditingRecord(null);
-    form.reset({ tDate: TODAY, generatorId: "", status: "Running", rating: "", hours: 0, remarks: "" });
+    form.reset({ tDate: TODAY, generatorId: "", status: "Ready", rating: "", hours: 0, remarks: "" });
     setIsFormOpen(true);
   };
 
@@ -214,8 +213,8 @@ export default function Dashboard() {
             <StatCard icon={<Clock className="w-5 h-5" />} label="Avg Hours" value={stats.avgHours != null ? `${Math.round(stats.avgHours)}h` : "-"} accent="#0891b2" />
             <StatCard
               icon={<TrendingUp className="w-5 h-5" />}
-              label="Running Now"
-              value={stats.byStatus.find(s => s.status === "Running")?.count ?? 0}
+              label="Ready"
+              value={stats.byStatus.find(s => s.status === "Ready")?.count ?? 0}
               accent="#15803d"
             />
           </div>
@@ -263,11 +262,10 @@ export default function Dashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="Running">Running</SelectItem>
-                  <SelectItem value="Stopped">Stopped</SelectItem>
-                  <SelectItem value="Maintenance">Maintenance</SelectItem>
-                  <SelectItem value="Fault">Fault</SelectItem>
-                  <SelectItem value="Idle">Idle</SelectItem>
+                  <SelectItem value="Ready">Ready</SelectItem>
+                  <SelectItem value="Under Repair">Under Repair</SelectItem>
+                  <SelectItem value="Under Readiness">Under Readiness</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -450,11 +448,10 @@ export default function Dashboard() {
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                <SelectItem value="Running">Running</SelectItem>
-                                <SelectItem value="Stopped">Stopped</SelectItem>
-                                <SelectItem value="Maintenance">Maintenance</SelectItem>
-                                <SelectItem value="Fault">Fault</SelectItem>
-                                <SelectItem value="Idle">Idle</SelectItem>
+                                <SelectItem value="Ready">Ready</SelectItem>
+                                <SelectItem value="Under Repair">Under Repair</SelectItem>
+                                <SelectItem value="Under Readiness">Under Readiness</SelectItem>
+                                <SelectItem value="Other">Other</SelectItem>
                               </SelectContent>
                             </Select>
                             <FormMessage />

@@ -41,7 +41,7 @@ export default function Login() {
   return (
     <div className="min-h-screen flex" style={{ background: "#f0ede8" }}>
       {/* Left branding panel */}
-      <div className="hidden lg:flex flex-col justify-between w-96 p-10" style={{ background: "#1f1f2e" }}>
+      <div className="hidden lg:flex flex-col justify-between w-96 p-10" style={{ background: "#0c5179" }}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "#ff6c00" }}>
             <Zap className="w-5 h-5 text-white" />
