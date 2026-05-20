@@ -6,12 +6,12 @@ import {
   useLogout,
   useListGenerators, getListGeneratorsQueryKey,
   useGetGeneratorStats, getGetGeneratorStatsQueryKey,
-  useCreateGenerator, useUpdateGenerator, useDeleteGenerator
+  useCreateGenerator, useUpdateGenerator, useDeleteGenerator,
+  GeneratorRecord
 } from "@workspace/api-client-react";
-import { GeneratorRecord } from "@workspace/api-client-react/src/generated/api.schemas";
 import {
   Zap, LogOut, Plus, Search, Edit2, Trash2,
-  Activity, Clock, TrendingUp, Database, ChevronDown, X
+  Activity, Clock, TrendingUp, Database, X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
