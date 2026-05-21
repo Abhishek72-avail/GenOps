@@ -11,7 +11,7 @@ import {
 } from "@workspace/api-client-react";
 import {
   Zap, LogOut, Plus, Search, Edit2, Trash2,
-  Activity, Clock, TrendingUp, Database, X
+  TrendingUp, Database, X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -209,8 +209,8 @@ export default function Dashboard() {
         {stats && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard icon={<Database className="w-5 h-5" />} label="Total Records" value={stats.total} />
-            <StatCard icon={<Activity className="w-5 h-5" />} label="This Week" value={stats.recentCount} accent="#7c3aed" />
-            <StatCard icon={<Clock className="w-5 h-5" />} label="Avg Hours" value={stats.avgHours != null ? `${Math.round(stats.avgHours)}h` : "-"} accent="#0891b2" />
+            <StatCard icon={<Zap className="w-5 h-5" />} label="C Panel" value={stats.byStatus.find(s => s.status === "Under Readiness")?.count ?? 0} accent="#7c3aed" />
+            <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Delivery Records" value={stats.byStatus.find(s => s.status === "Ready")?.count ?? 0} accent="#0891b2" />
             <StatCard
               icon={<TrendingUp className="w-5 h-5" />}
               label="Ready"
