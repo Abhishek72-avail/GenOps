@@ -5,6 +5,25 @@ const SPREADSHEET_ID = "1Px5UEwvvkg0fJJcRXOdJnIIspOqf9EwWPKkHIPrzSmY";
 const SHEET_NAME = "Sheet1";
 const HEADERS = ["Date", "Generator ID", "Status", "Rating", "Hours", "Remarks"];
 
+export const PANEL_SHEETS = [
+  { id: "C7",  title: "C7 - EWC",         prefixes: ["EWC"] },
+  { id: "C9",  title: "C9 - LX9",         prefixes: ["LX9"] },
+  { id: "C13", title: "C13 - DH40",        prefixes: ["DH40"] },
+  { id: "C15", title: "C15 - LXJ/2S300",   prefixes: ["LXJ", "2S300"] },
+  { id: "C18", title: "C18 - LXK",         prefixes: ["LXK"] },
+] as const;
+
+/** Maps a Generator ID prefix to its C Panel ID, or "Other" if unrecognised. */
+export function getGeneratorPanel(generatorId: string): string {
+  const id = (generatorId || "").toUpperCase().trim();
+  if (id.startsWith("EWC"))  return "C7";
+  if (id.startsWith("LX9"))  return "C9";
+  if (id.startsWith("DH40")) return "C13";
+  if (id.startsWith("LXJ") || id.startsWith("2S300")) return "C15";
+  if (id.startsWith("LXK"))  return "C18";
+  return "Other";
+}
+
 function getAuth() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!raw) throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON is not set");
@@ -12,6 +31,11 @@ function getAuth() {
     credentials: JSON.parse(raw),
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
+}
+
+/** Safely quote a sheet name for use in A1 range notation. */
+function q(title: string): string {
+  return `'${title.replace(/'/g, "''")}'`;
 }
 
 type SheetRow = {
@@ -23,42 +47,84 @@ type SheetRow = {
   remarks?: string | null;
 };
 
+function toValues(rows: SheetRow[]): string[][] {
+  return [
+    HEADERS,
+    ...rows.map((r) => [
+      r.tDate ?? "",
+      r.generatorId ?? "",
+      r.status ?? "",
+      r.rating ?? "",
+      r.hours != null ? String(r.hours) : "",
+      r.remarks ?? "",
+    ]),
+  ];
+}
+
+/** In-memory flag so we only check for missing sub-sheets once per server start. */
+let panelSheetsReady = false;
+
+async function ensurePanelSheets(sheets: ReturnType<typeof google.sheets>): Promise<void> {
+  if (panelSheetsReady) return;
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
+  const existing = new Set<string>(
+    meta.data.sheets?.map((s) => s.properties?.title ?? "") ?? []
+  );
+  const toCreate = PANEL_SHEETS.filter((p) => !existing.has(p.title));
+  if (toCreate.length > 0) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: toCreate.map((p) => ({
+          addSheet: { properties: { title: p.title } },
+        })),
+      },
+    });
+  }
+  panelSheetsReady = true;
+}
+
+async function writeSheet(
+  sheets: ReturnType<typeof google.sheets>,
+  title: string,
+  rows: SheetRow[]
+): Promise<void> {
+  const rangeRef = title === SHEET_NAME ? SHEET_NAME : q(title);
+  const startRef = title === SHEET_NAME ? `${SHEET_NAME}!A1` : `${q(title)}!A1`;
+  const values = toValues(rows);
+  await sheets.spreadsheets.values.clear({
+    spreadsheetId: SPREADSHEET_ID,
+    range: rangeRef,
+  });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: startRef,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values },
+  });
+}
+
 /**
- * Fully rebuilds the Google Sheet from the current DB rows.
- * This is the only sync function used — no row-index guessing needed.
- * Row 1 = headers, rows 2+ = data sorted by date then generatorId.
+ * Fully rebuilds the main Sheet1 AND all 5 C Panel sub-sheets from the current DB rows.
+ * Sub-sheets are created automatically on first call if they don't exist.
  */
 export async function syncSheetFromDb(rows: SheetRow[]): Promise<void> {
   try {
     const auth = getAuth();
     const sheets = google.sheets({ version: "v4", auth });
 
-    const values: string[][] = [
-      HEADERS,
-      ...rows.map((r) => [
-        r.tDate ?? "",
-        r.generatorId ?? "",
-        r.status ?? "",
-        r.rating ?? "",
-        r.hours != null ? String(r.hours) : "",
-        r.remarks ?? "",
-      ]),
-    ];
+    await ensurePanelSheets(sheets);
 
-    // Clear entire sheet first
-    await sheets.spreadsheets.values.clear({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}`,
-    });
+    // Main sheet — all records
+    await writeSheet(sheets, SHEET_NAME, rows);
 
-    // Write fresh data
-    if (values.length > 0) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `${SHEET_NAME}!A1`,
-        valueInputOption: "USER_ENTERED",
-        requestBody: { values },
+    // C Panel sub-sheets — filtered by Generator ID prefix
+    for (const panel of PANEL_SHEETS) {
+      const panelRows = rows.filter((r) => {
+        const id = (r.generatorId || "").toUpperCase().trim();
+        return panel.prefixes.some((prefix) => id.startsWith(prefix.toUpperCase()));
       });
+      await writeSheet(sheets, panel.title, panelRows);
     }
   } catch (err) {
     logger.error({ err }, "Failed to sync sheet from DB");

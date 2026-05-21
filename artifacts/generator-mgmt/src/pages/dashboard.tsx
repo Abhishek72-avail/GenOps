@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -11,7 +11,7 @@ import {
 } from "@workspace/api-client-react";
 import {
   Zap, LogOut, Plus, Search, Edit2, Trash2,
-  TrendingUp, Database, X
+  TrendingUp, Database, X, ChevronDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +41,26 @@ const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string }> =
   "Other":            { bg: "#f8fafc", text: "#64748b", dot: "#94a3b8" },
 };
 
+const STATUSES = ["Ready", "Under Repair", "Under Readiness", "Other"];
+
+const CPANELS = [
+  { id: "C7",  label: "C7 - EWC",         prefixes: ["EWC"] },
+  { id: "C9",  label: "C9 - LX9",         prefixes: ["LX9"] },
+  { id: "C13", label: "C13 - DH40",        prefixes: ["DH40"] },
+  { id: "C15", label: "C15 - LXJ/2S300",   prefixes: ["LXJ", "2S300"] },
+  { id: "C18", label: "C18 - LXK",         prefixes: ["LXK"] },
+] as const;
+
+function getGeneratorPanel(generatorId: string): string {
+  const id = (generatorId || "").toUpperCase().trim();
+  if (id.startsWith("EWC"))  return "C7";
+  if (id.startsWith("LX9"))  return "C9";
+  if (id.startsWith("DH40")) return "C13";
+  if (id.startsWith("LXJ") || id.startsWith("2S300")) return "C15";
+  if (id.startsWith("LXK"))  return "C18";
+  return "Other";
+}
+
 function StatusBadge({ status }: { status: string }) {
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG["Other"];
   return (
@@ -54,16 +74,39 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function StatCard({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: string | number; accent?: string }) {
+function StatCard({
+  icon, label, value, accent, onClick, isActive,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+  accent?: string;
+  onClick?: () => void;
+  isActive?: boolean;
+}) {
+  const color = accent ?? "#ff6c00";
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4 shadow-sm">
-      <div className="w-11 h-11 rounded-lg flex items-center justify-center" style={{ background: accent ? `${accent}15` : "#ff6c0015" }}>
-        <span style={{ color: accent ?? "#ff6c00" }}>{icon}</span>
+    <div
+      className={`bg-white rounded-xl border p-5 flex items-center gap-4 shadow-sm transition-all ${onClick ? "cursor-pointer hover:shadow-md" : ""}`}
+      style={{
+        borderColor: isActive ? color : "#e5e7eb",
+        boxShadow: isActive ? `0 0 0 2px ${color}33` : undefined,
+      }}
+      onClick={onClick}
+    >
+      <div className="w-11 h-11 rounded-lg flex items-center justify-center" style={{ background: `${color}18` }}>
+        <span style={{ color }}>{icon}</span>
       </div>
-      <div>
+      <div className="flex-1 min-w-0">
         <p className="text-xs font-medium uppercase tracking-wide" style={{ color: "#9ca3af" }}>{label}</p>
         <p className="text-2xl font-bold mt-0.5" style={{ color: "#111827" }}>{value}</p>
       </div>
+      {onClick && (
+        <ChevronDown
+          className="w-4 h-4 transition-transform duration-200 flex-shrink-0"
+          style={{ color: "#9ca3af", transform: isActive ? "rotate(180deg)" : "rotate(0deg)" }}
+        />
+      )}
     </div>
   );
 }
@@ -83,11 +126,51 @@ export default function Dashboard() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<GeneratorRecord | null>(null);
+  const [showCPanel, setShowCPanel] = useState(false);
+  const [selectedCPanel, setSelectedCPanel] = useState<string | null>(null);
 
   const { data: stats } = useGetGeneratorStats({ query: { queryKey: getGetGeneratorStatsQueryKey() } });
-  const { data: generators, isLoading: isLoadingGenerators } = useListGenerators(
-    { search: search || undefined, status: statusFilter !== "all" ? statusFilter : undefined },
-    { query: { queryKey: getListGeneratorsQueryKey({ search: search || undefined, status: statusFilter !== "all" ? statusFilter : undefined }) } }
+
+  // Fetch ALL records — filtering is done client-side so C Panel stats are always accurate
+  const { data: allGenerators, isLoading: isLoadingGenerators } = useListGenerators(
+    {},
+    { query: { queryKey: getListGeneratorsQueryKey() } }
+  );
+
+  // Client-side filtered list for the table
+  const generators = useMemo(() => {
+    if (!allGenerators) return [];
+    return allGenerators.filter((r) => {
+      if (statusFilter !== "all" && r.status !== statusFilter) return false;
+      if (selectedCPanel && getGeneratorPanel(r.generatorId) !== selectedCPanel) return false;
+      if (search) {
+        const s = search.toLowerCase();
+        return (
+          r.generatorId.toLowerCase().includes(s) ||
+          r.tDate.includes(s) ||
+          (r.remarks ?? "").toLowerCase().includes(s)
+        );
+      }
+      return true;
+    });
+  }, [allGenerators, statusFilter, selectedCPanel, search]);
+
+  // Per C-Panel stats computed client-side
+  const cpanelStats = useMemo(() => {
+    if (!allGenerators) return null;
+    return CPANELS.map((panel) => {
+      const records = allGenerators.filter((r) => getGeneratorPanel(r.generatorId) === panel.id);
+      const byStatus: Record<string, number> = {};
+      for (const r of records) {
+        byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
+      }
+      return { ...panel, total: records.length, byStatus };
+    });
+  }, [allGenerators]);
+
+  const cpanelTotal = useMemo(
+    () => allGenerators?.filter((r) => getGeneratorPanel(r.generatorId) !== "Other").length ?? 0,
+    [allGenerators]
   );
 
   const createMutation = useCreateGenerator();
@@ -209,7 +292,17 @@ export default function Dashboard() {
         {stats && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard icon={<Database className="w-5 h-5" />} label="Total Records" value={stats.total} />
-            <StatCard icon={<Zap className="w-5 h-5" />} label="C Panel" value={stats.byStatus.find(s => s.status === "Under Readiness")?.count ?? 0} accent="#7c3aed" />
+            <StatCard
+              icon={<Zap className="w-5 h-5" />}
+              label="C Panel"
+              value={cpanelTotal}
+              accent="#7c3aed"
+              onClick={() => {
+                setShowCPanel((v) => !v);
+                setSelectedCPanel(null);
+              }}
+              isActive={showCPanel}
+            />
             <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Delivery Records" value={stats.byStatus.find(s => s.status === "Ready")?.count ?? 0} accent="#0891b2" />
             <StatCard
               icon={<TrendingUp className="w-5 h-5" />}
@@ -220,9 +313,112 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* C Panel expandable section */}
+        <AnimatePresence>
+          {showCPanel && (
+            <motion.div
+              key="cpanel"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18 }}
+              className="bg-white rounded-xl border border-purple-200 shadow-sm overflow-hidden"
+              style={{ borderColor: "#7c3aed33" }}
+            >
+              <div className="px-5 py-4 border-b" style={{ borderColor: "#f3f0ff", background: "#faf5ff" }}>
+                <h3 className="text-sm font-bold" style={{ color: "#7c3aed" }}>C Panel — Sub-Panels</h3>
+                <p className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>Click a panel to view its stats and filter the table below</p>
+              </div>
+
+              <div className="p-5">
+                {/* Sub-panel buttons */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  {cpanelStats && cpanelStats.map((panel) => (
+                    <button
+                      key={panel.id}
+                      onClick={() => setSelectedCPanel(selectedCPanel === panel.id ? null : panel.id)}
+                      className="rounded-xl p-4 text-left border transition-all hover:shadow-sm"
+                      style={{
+                        borderColor: selectedCPanel === panel.id ? "#7c3aed" : "#e5e7eb",
+                        background: selectedCPanel === panel.id ? "#f5f3ff" : "#f9fafb",
+                        boxShadow: selectedCPanel === panel.id ? "0 0 0 2px #7c3aed33" : undefined,
+                      }}
+                    >
+                      <p className="text-sm font-bold" style={{ color: selectedCPanel === panel.id ? "#7c3aed" : "#374151" }}>
+                        {panel.id}
+                      </p>
+                      <p className="text-xs mt-0.5 truncate" style={{ color: "#9ca3af" }}>
+                        {panel.label.split(" - ")[1]}
+                      </p>
+                      <p className="text-2xl font-bold mt-2" style={{ color: selectedCPanel === panel.id ? "#7c3aed" : "#111827" }}>
+                        {panel.total}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Selected panel stats */}
+                <AnimatePresence>
+                  {selectedCPanel && cpanelStats && (() => {
+                    const panel = cpanelStats.find((p) => p.id === selectedCPanel);
+                    if (!panel) return null;
+                    return (
+                      <motion.div
+                        key={selectedCPanel}
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.15 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-4 pt-4 border-t" style={{ borderColor: "#f3f0ff" }}>
+                          <h4 className="text-sm font-semibold mb-3" style={{ color: "#374151" }}>
+                            {panel.label} — Status Breakdown
+                          </h4>
+                          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                            {/* Total */}
+                            <div className="rounded-xl p-4 text-center border border-gray-200" style={{ background: "#f9fafb" }}>
+                              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "#6b7280" }}>Total</p>
+                              <p className="text-2xl font-bold mt-1" style={{ color: "#111827" }}>{panel.total}</p>
+                            </div>
+                            {/* Per status */}
+                            {STATUSES.map((status) => {
+                              const cfg = STATUS_CONFIG[status];
+                              return (
+                                <div
+                                  key={status}
+                                  className="rounded-xl p-4 text-center border"
+                                  style={{ background: cfg.bg, borderColor: `${cfg.dot}44` }}
+                                >
+                                  <p className="text-xs font-semibold uppercase tracking-wide truncate" style={{ color: cfg.text }}>{status}</p>
+                                  <p className="text-2xl font-bold mt-1" style={{ color: cfg.text }}>{panel.byStatus[status] ?? 0}</p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })()}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Status breakdown pills */}
         {stats && stats.byStatus.length > 0 && (
           <div className="flex flex-wrap gap-2">
+            {selectedCPanel && (
+              <button
+                onClick={() => { setSelectedCPanel(null); setShowCPanel(false); }}
+                className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border transition-all"
+                style={{ background: "#f5f3ff", color: "#7c3aed", borderColor: "#7c3aed" }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#7c3aed" }} />
+                {CPANELS.find(p => p.id === selectedCPanel)?.label} <X className="w-3 h-3 ml-1" />
+              </button>
+            )}
             {stats.byStatus.map(s => (
               <button
                 key={s.status}
@@ -257,7 +453,7 @@ export default function Dashboard() {
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-36 h-9 text-sm bg-gray-50 border-gray-200" data-testid="select-status-filter">
+                <SelectTrigger className="w-40 h-9 text-sm bg-gray-50 border-gray-200" data-testid="select-status-filter">
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -280,12 +476,20 @@ export default function Dashboard() {
             </Button>
           </div>
 
+          {selectedCPanel && (
+            <div className="px-5 py-2.5 border-b text-xs font-medium flex items-center gap-2" style={{ background: "#faf5ff", borderColor: "#ede9fe", color: "#7c3aed" }}>
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+              Filtering by {CPANELS.find(p => p.id === selectedCPanel)?.label}
+              <button onClick={() => setSelectedCPanel(null)} className="ml-1 underline hover:no-underline">Clear</button>
+            </div>
+          )}
+
           {/* Table */}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                  {["Date", "Generator ID", "Status", "Rating", "Hours", "Remarks", ""].map(h => (
+                  {["Date", "Generator ID", "C Panel", "Status", "Rating", "Hours", "Remarks", ""].map(h => (
                     <th key={h} className="text-left px-5 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: "#6b7280" }}>{h}</th>
                   ))}
                 </tr>
@@ -293,59 +497,76 @@ export default function Dashboard() {
               <tbody>
                 {isLoadingGenerators ? (
                   <tr>
-                    <td colSpan={7} className="px-5 py-12 text-center text-sm" style={{ color: "#9ca3af" }}>
+                    <td colSpan={8} className="px-5 py-12 text-center text-sm" style={{ color: "#9ca3af" }}>
                       Loading records...
                     </td>
                   </tr>
-                ) : generators && generators.length > 0 ? (
-                  generators.map((record, idx) => (
-                    <tr
-                      key={record.id}
-                      style={{ borderBottom: idx < generators.length - 1 ? "1px solid #f3f4f6" : "none" }}
-                      className="hover:bg-orange-50/40 transition-colors"
-                      data-testid={`row-generator-${record.id}`}
-                    >
-                      <td className="px-5 py-3.5 font-medium" style={{ color: "#374151" }}>{record.tDate}</td>
-                      <td className="px-5 py-3.5">
-                        <span className="font-semibold" style={{ color: "#111827" }}>{record.generatorId}</span>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <StatusBadge status={record.status} />
-                      </td>
-                      <td className="px-5 py-3.5" style={{ color: "#6b7280" }}>{record.rating || "-"}</td>
-                      <td className="px-5 py-3.5 font-medium" style={{ color: "#374151" }}>{record.hours != null ? `${record.hours}h` : "-"}</td>
-                      <td className="px-5 py-3.5 max-w-xs truncate" style={{ color: "#6b7280" }}>{record.remarks || "-"}</td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => openEdit(record)}
-                            className="p-1.5 rounded-lg hover:bg-blue-50 transition-colors"
-                            title="Edit"
-                            data-testid={`button-edit-${record.id}`}
-                          >
-                            <Edit2 className="w-3.5 h-3.5" style={{ color: "#3b82f6" }} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(record.id)}
-                            className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
-                            title="Delete"
-                            data-testid={`button-delete-${record.id}`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" style={{ color: "#ef4444" }} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                ) : generators.length > 0 ? (
+                  generators.map((record, idx) => {
+                    const panel = getGeneratorPanel(record.generatorId);
+                    return (
+                      <tr
+                        key={record.id}
+                        style={{ borderBottom: idx < generators.length - 1 ? "1px solid #f3f4f6" : "none" }}
+                        className="hover:bg-orange-50/40 transition-colors"
+                        data-testid={`row-generator-${record.id}`}
+                      >
+                        <td className="px-5 py-3.5 font-medium" style={{ color: "#374151" }}>{record.tDate}</td>
+                        <td className="px-5 py-3.5">
+                          <span className="font-semibold" style={{ color: "#111827" }}>{record.generatorId}</span>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          {panel !== "Other" ? (
+                            <span
+                              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold"
+                              style={{ background: "#f5f3ff", color: "#7c3aed" }}
+                            >
+                              {panel}
+                            </span>
+                          ) : (
+                            <span className="text-xs" style={{ color: "#d1d5db" }}>—</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <StatusBadge status={record.status} />
+                        </td>
+                        <td className="px-5 py-3.5" style={{ color: "#6b7280" }}>{record.rating || "-"}</td>
+                        <td className="px-5 py-3.5 font-medium" style={{ color: "#374151" }}>{record.hours != null ? `${record.hours}h` : "-"}</td>
+                        <td className="px-5 py-3.5 max-w-xs truncate" style={{ color: "#6b7280" }}>{record.remarks || "-"}</td>
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => openEdit(record)}
+                              className="p-1.5 rounded-lg hover:bg-blue-50 transition-colors"
+                              title="Edit"
+                              data-testid={`button-edit-${record.id}`}
+                            >
+                              <Edit2 className="w-3.5 h-3.5" style={{ color: "#3b82f6" }} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(record.id)}
+                              className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                              title="Delete"
+                              data-testid={`button-delete-${record.id}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" style={{ color: "#ef4444" }} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
-                    <td colSpan={7} className="px-5 py-16 text-center">
+                    <td colSpan={8} className="px-5 py-16 text-center">
                       <div className="flex flex-col items-center gap-3">
                         <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "#fff7ed" }}>
                           <Database className="w-6 h-6" style={{ color: "#ff6c00" }} />
                         </div>
                         <p className="text-sm font-medium" style={{ color: "#374151" }}>No records found</p>
-                        <p className="text-xs" style={{ color: "#9ca3af" }}>Click "Add Record" to create your first entry</p>
+                        <p className="text-xs" style={{ color: "#9ca3af" }}>
+                          {selectedCPanel ? `No records in ${CPANELS.find(p => p.id === selectedCPanel)?.label}` : 'Click "Add Record" to create your first entry'}
+                        </p>
                       </div>
                     </td>
                   </tr>
@@ -354,9 +575,10 @@ export default function Dashboard() {
             </table>
           </div>
 
-          {generators && generators.length > 0 && (
+          {generators.length > 0 && (
             <div className="px-5 py-3 border-t border-gray-100 text-xs" style={{ color: "#9ca3af" }}>
               Showing {generators.length} record{generators.length !== 1 ? "s" : ""}
+              {selectedCPanel && ` in ${CPANELS.find(p => p.id === selectedCPanel)?.label}`}
             </div>
           )}
         </div>
@@ -426,7 +648,7 @@ export default function Dashboard() {
                           <FormItem>
                             <FormLabel className="text-sm font-medium" style={{ color: "#374151" }}>Generator ID</FormLabel>
                             <FormControl>
-                              <Input placeholder="e.g. GEN-001" className="h-10 bg-gray-50 border-gray-200" data-testid="input-generator-id" {...field} />
+                              <Input placeholder="e.g. EWC-001, LX9-02" className="h-10 bg-gray-50 border-gray-200" data-testid="input-generator-id" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -510,8 +732,9 @@ export default function Dashboard() {
                           <FormLabel className="text-sm font-medium" style={{ color: "#374151" }}>Remarks</FormLabel>
                           <FormControl>
                             <Textarea
-                              placeholder="Enter any notes or observations..."
-                              className="bg-gray-50 border-gray-200 min-h-28 resize-none"
+                              placeholder="Any additional notes..."
+                              className="bg-gray-50 border-gray-200 resize-none"
+                              rows={3}
                               data-testid="input-remarks"
                               {...field}
                               value={field.value ?? ""}
@@ -528,20 +751,19 @@ export default function Dashboard() {
               {/* Panel footer */}
               <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
                 <Button
+                  type="button"
                   variant="outline"
-                  className="flex-1 h-10 border-gray-200"
+                  className="flex-1 h-10"
                   onClick={() => setIsFormOpen(false)}
-                  data-testid="button-cancel"
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   form="generator-form"
+                  disabled={isPending}
                   className="flex-1 h-10 font-semibold text-white"
                   style={{ background: "#ff6c00" }}
-                  disabled={isPending}
-                  data-testid="button-save"
                 >
                   {isPending ? "Saving..." : editingRecord ? "Update Record" : "Save Record"}
                 </Button>
