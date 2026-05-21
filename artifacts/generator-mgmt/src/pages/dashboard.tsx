@@ -7,8 +7,8 @@ import {
   useListGenerators, getListGeneratorsQueryKey,
   useGetGeneratorStats, getGetGeneratorStatsQueryKey,
   useCreateGenerator, useUpdateGenerator, useDeleteGenerator,
-  GeneratorRecord
 } from "@workspace/api-client-react";
+import type { GeneratorRecord } from "@workspace/api-client-react";
 import {
   Zap, LogOut, Plus, Search, Edit2, Trash2,
   TrendingUp, Database, X, ChevronDown
@@ -133,7 +133,7 @@ export default function Dashboard() {
 
   // Fetch ALL records — filtering is done client-side so C Panel stats are always accurate
   const { data: allGenerators, isLoading: isLoadingGenerators } = useListGenerators(
-    {},
+    undefined,
     { query: { queryKey: getListGeneratorsQueryKey() } }
   );
 
@@ -171,6 +171,12 @@ export default function Dashboard() {
   const cpanelTotal = useMemo(
     () => allGenerators?.filter((r) => getGeneratorPanel(r.generatorId) !== "Other").length ?? 0,
     [allGenerators]
+  );
+
+  // Pre-compute selected panel data to avoid IIFE in JSX (which confuses React Fast Refresh)
+  const selectedPanelData = useMemo(
+    () => (selectedCPanel && cpanelStats ? cpanelStats.find((p) => p.id === selectedCPanel) ?? null : null),
+    [selectedCPanel, cpanelStats]
   );
 
   const createMutation = useCreateGenerator();
@@ -359,47 +365,41 @@ export default function Dashboard() {
 
                 {/* Selected panel stats */}
                 <AnimatePresence>
-                  {selectedCPanel && cpanelStats && (() => {
-                    const panel = cpanelStats.find((p) => p.id === selectedCPanel);
-                    if (!panel) return null;
-                    return (
-                      <motion.div
-                        key={selectedCPanel}
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.15 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="mt-4 pt-4 border-t" style={{ borderColor: "#f3f0ff" }}>
-                          <h4 className="text-sm font-semibold mb-3" style={{ color: "#374151" }}>
-                            {panel.label} — Status Breakdown
-                          </h4>
-                          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                            {/* Total */}
-                            <div className="rounded-xl p-4 text-center border border-gray-200" style={{ background: "#f9fafb" }}>
-                              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "#6b7280" }}>Total</p>
-                              <p className="text-2xl font-bold mt-1" style={{ color: "#111827" }}>{panel.total}</p>
-                            </div>
-                            {/* Per status */}
-                            {STATUSES.map((status) => {
-                              const cfg = STATUS_CONFIG[status];
-                              return (
-                                <div
-                                  key={status}
-                                  className="rounded-xl p-4 text-center border"
-                                  style={{ background: cfg.bg, borderColor: `${cfg.dot}44` }}
-                                >
-                                  <p className="text-xs font-semibold uppercase tracking-wide truncate" style={{ color: cfg.text }}>{status}</p>
-                                  <p className="text-2xl font-bold mt-1" style={{ color: cfg.text }}>{panel.byStatus[status] ?? 0}</p>
-                                </div>
-                              );
-                            })}
+                  {selectedPanelData && (
+                    <motion.div
+                      key={selectedPanelData.id}
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-4 pt-4 border-t" style={{ borderColor: "#f3f0ff" }}>
+                        <h4 className="text-sm font-semibold mb-3" style={{ color: "#374151" }}>
+                          {selectedPanelData.label} — Status Breakdown
+                        </h4>
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                          <div className="rounded-xl p-4 text-center border border-gray-200" style={{ background: "#f9fafb" }}>
+                            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "#6b7280" }}>Total</p>
+                            <p className="text-2xl font-bold mt-1" style={{ color: "#111827" }}>{selectedPanelData.total}</p>
                           </div>
+                          {STATUSES.map((status) => {
+                            const cfg = STATUS_CONFIG[status];
+                            return (
+                              <div
+                                key={status}
+                                className="rounded-xl p-4 text-center border"
+                                style={{ background: cfg.bg, borderColor: `${cfg.dot}44` }}
+                              >
+                                <p className="text-xs font-semibold uppercase tracking-wide truncate" style={{ color: cfg.text }}>{status}</p>
+                                <p className="text-2xl font-bold mt-1" style={{ color: cfg.text }}>{selectedPanelData.byStatus[status] ?? 0}</p>
+                              </div>
+                            );
+                          })}
                         </div>
-                      </motion.div>
-                    );
-                  })()}
+                      </div>
+                    </motion.div>
+                  )}
                 </AnimatePresence>
               </div>
             </motion.div>
