@@ -17,6 +17,8 @@ export interface GeneratorRecord {
   hours?: number | null;
   /** @nullable */
   remarks?: string | null;
+  /** @nullable */
+  deliveryStatus?: string | null;
   createdAt: string;
   updatedAt: string;
 }

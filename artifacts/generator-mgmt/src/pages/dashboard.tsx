@@ -11,7 +11,7 @@ import {
 import type { GeneratorRecord } from "@workspace/api-client-react";
 import {
   Zap, LogOut, Plus, Search, Edit2, Trash2,
-  TrendingUp, Database, X, ChevronDown
+  TrendingUp, Database, X, ChevronDown, Truck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,7 +44,7 @@ const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string }> =
 const STATUSES = ["Ready", "Under Repair", "Under Readiness", "Other"];
 
 const CPANELS = [
-  { id: "C7",  label: "C7 - EWC",         prefixes: ["EWC"] },
+  { id: "C7",  label: "C7 - ECW",         prefixes: ["ECW"] },
   { id: "C9",  label: "C9 - LX9",         prefixes: ["LX9"] },
   { id: "C13", label: "C13 - DH40",        prefixes: ["DH40"] },
   { id: "C15", label: "C15 - LXJ/2S300",   prefixes: ["LXJ", "2S300"] },
@@ -53,7 +53,7 @@ const CPANELS = [
 
 function getGeneratorPanel(generatorId: string): string {
   const id = (generatorId || "").toUpperCase().trim();
-  if (id.startsWith("EWC"))  return "C7";
+  if (id.startsWith("ECW"))  return "C7";
   if (id.startsWith("LX9"))  return "C9";
   if (id.startsWith("DH40")) return "C13";
   if (id.startsWith("LXJ") || id.startsWith("2S300")) return "C15";
@@ -221,6 +221,20 @@ export default function Dashboard() {
     });
   };
 
+  const handleDeliver = (record: GeneratorRecord) => {
+    if (record.deliveryStatus === "previous") return;
+    const nextStatus = !record.deliveryStatus ? "current" : "previous";
+    updateMutation.mutate(
+      { id: record.id, data: { deliveryStatus: nextStatus } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListGeneratorsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetGeneratorStatsQueryKey() });
+        },
+      }
+    );
+  };
+
   const handleLogout = () => {
     logoutMutation.mutate(undefined, {
       onSuccess: () => { queryClient.clear(); setLocation("/login"); },
@@ -309,13 +323,8 @@ export default function Dashboard() {
               }}
               isActive={showCPanel}
             />
-            <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Delivery Records" value={stats.byStatus.find(s => s.status === "Ready")?.count ?? 0} accent="#0891b2" />
-            <StatCard
-              icon={<TrendingUp className="w-5 h-5" />}
-              label="Ready"
-              value={stats.byStatus.find(s => s.status === "Ready")?.count ?? 0}
-              accent="#15803d"
-            />
+            <StatCard icon={<Truck className="w-5 h-5" />} label="Current Delivery" value={stats.currentDelivery} accent="#0891b2" />
+            <StatCard icon={<Truck className="w-5 h-5" />} label="Previous Delivery" value={stats.previousDelivery} accent="#1e3a5f" />
           </div>
         )}
 
@@ -489,7 +498,7 @@ export default function Dashboard() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                  {["Date", "Generator ID", "C Panel", "Status", "Rating", "Hours", "Remarks", ""].map(h => (
+                  {["Date", "Generator ID", "C Panel", "Status", "Rating", "Hours", "Remarks", "D", ""].map(h => (
                     <th key={h} className="text-left px-5 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: "#6b7280" }}>{h}</th>
                   ))}
                 </tr>
@@ -497,7 +506,7 @@ export default function Dashboard() {
               <tbody>
                 {isLoadingGenerators ? (
                   <tr>
-                    <td colSpan={8} className="px-5 py-12 text-center text-sm" style={{ color: "#9ca3af" }}>
+                    <td colSpan={9} className="px-5 py-12 text-center text-sm" style={{ color: "#9ca3af" }}>
                       Loading records...
                     </td>
                   </tr>
@@ -533,6 +542,32 @@ export default function Dashboard() {
                         <td className="px-5 py-3.5" style={{ color: "#6b7280" }}>{record.rating || "-"}</td>
                         <td className="px-5 py-3.5 font-medium" style={{ color: "#374151" }}>{record.hours != null ? `${record.hours}h` : "-"}</td>
                         <td className="px-5 py-3.5 max-w-xs truncate" style={{ color: "#6b7280" }}>{record.remarks || "-"}</td>
+                        {/* D — Delivery button */}
+                        <td className="px-5 py-3.5">
+                          {(() => {
+                            const ds = record.deliveryStatus;
+                            const isPrev = ds === "previous";
+                            const isCurr = ds === "current";
+                            return (
+                              <button
+                                onClick={() => handleDeliver(record)}
+                                disabled={isPrev}
+                                title={isPrev ? "Already in Previous Delivery" : isCurr ? "Move to Previous Delivery" : "Mark as Current Delivery"}
+                                className="p-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                style={{
+                                  background: isPrev ? "#f3f4f6" : isCurr ? "#fff7ed" : "#f0fdf4",
+                                  border: `1px solid ${isPrev ? "#e5e7eb" : isCurr ? "#fdba74" : "#86efac"}`,
+                                }}
+                                data-testid={`button-deliver-${record.id}`}
+                              >
+                                <Truck
+                                  className="w-3.5 h-3.5"
+                                  style={{ color: isPrev ? "#9ca3af" : isCurr ? "#f97316" : "#16a34a" }}
+                                />
+                              </button>
+                            );
+                          })()}
+                        </td>
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-1">
                             <button
@@ -558,7 +593,7 @@ export default function Dashboard() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={8} className="px-5 py-16 text-center">
+                    <td colSpan={9} className="px-5 py-16 text-center">
                       <div className="flex flex-col items-center gap-3">
                         <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "#fff7ed" }}>
                           <Database className="w-6 h-6" style={{ color: "#ff6c00" }} />
@@ -648,7 +683,7 @@ export default function Dashboard() {
                           <FormItem>
                             <FormLabel className="text-sm font-medium" style={{ color: "#374151" }}>Generator ID</FormLabel>
                             <FormControl>
-                              <Input placeholder="e.g. EWC-001, LX9-02" className="h-10 bg-gray-50 border-gray-200" data-testid="input-generator-id" {...field} />
+                              <Input placeholder="e.g. ECW-001, LX9-02" className="h-10 bg-gray-50 border-gray-200" data-testid="input-generator-id" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>

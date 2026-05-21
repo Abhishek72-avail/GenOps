@@ -94,8 +94,10 @@ router.get("/generators/stats", async (req, res): Promise<void> => {
 
   const byStatus = Object.entries(statusMap).map(([status, count]) => ({ status, count }));
   const avgHours = hoursCount > 0 ? Math.round((hoursSum / hoursCount) * 10) / 10 : null;
+  const currentDelivery = all.filter((r) => r.deliveryStatus === "current").length;
+  const previousDelivery = all.filter((r) => r.deliveryStatus === "previous").length;
 
-  res.json({ total, byStatus, avgHours, recentCount });
+  res.json({ total, byStatus, avgHours, recentCount, currentDelivery, previousDelivery });
 });
 
 router.post("/generators", async (req, res): Promise<void> => {

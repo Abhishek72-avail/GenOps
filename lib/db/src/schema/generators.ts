@@ -10,6 +10,7 @@ export const generatorsTable = pgTable("generators", {
   rating: text("rating"),
   hours: real("hours"),
   remarks: text("remarks"),
+  deliveryStatus: text("delivery_status"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

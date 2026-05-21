@@ -353,6 +353,8 @@ components:
           type: ["number", "null"]
         remarks:
           type: ["string", "null"]
+        deliveryStatus:
+          type: ["string", "null"]
         createdAt:
           type: string
         updatedAt:
@@ -400,6 +402,8 @@ components:
           type: number
         remarks:
           type: string
+        deliveryStatus:
+          type: string
 
     GeneratorStats:
       type: object
@@ -422,7 +426,13 @@ components:
           type: ["number", "null"]
         recentCount:
           type: integer
+        currentDelivery:
+          type: integer
+        previousDelivery:
+          type: integer
       required:
         - total
         - byStatus
         - recentCount
+        - currentDelivery
+        - previousDelivery

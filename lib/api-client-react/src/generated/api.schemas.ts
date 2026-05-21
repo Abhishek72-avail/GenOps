@@ -51,6 +51,8 @@ export interface GeneratorRecord {
   hours?: number | null;
   /** @nullable */
   remarks?: string | null;
+  /** @nullable */
+  deliveryStatus?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -71,6 +73,7 @@ export interface GeneratorUpdate {
   rating?: string;
   hours?: number;
   remarks?: string;
+  deliveryStatus?: string;
 }
 
 export type GeneratorStatsByStatusItem = {
@@ -84,6 +87,8 @@ export interface GeneratorStats {
   /** @nullable */
   avgHours?: number | null;
   recentCount: number;
+  currentDelivery: number;
+  previousDelivery: number;
 }
 
 export type ListGeneratorsParams = {

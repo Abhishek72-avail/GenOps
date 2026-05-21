@@ -13,4 +13,5 @@ export interface GeneratorUpdate {
   rating?: string;
   hours?: number;
   remarks?: string;
+  deliveryStatus?: string;
 }

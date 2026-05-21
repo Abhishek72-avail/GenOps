@@ -13,4 +13,6 @@ export interface GeneratorStats {
   /** @nullable */
   avgHours?: number | null;
   recentCount: number;
+  currentDelivery: number;
+  previousDelivery: number;
 }

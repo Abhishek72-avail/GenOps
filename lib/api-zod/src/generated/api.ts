@@ -81,6 +81,7 @@ export const ListGeneratorsResponseItem = zod.object({
   "rating": zod.string().nullish(),
   "hours": zod.number().nullish(),
   "remarks": zod.string().nullish(),
+  "deliveryStatus": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -110,7 +111,9 @@ export const GetGeneratorStatsResponse = zod.object({
   "count": zod.number()
 })),
   "avgHours": zod.number().nullish(),
-  "recentCount": zod.number()
+  "recentCount": zod.number(),
+  "currentDelivery": zod.number(),
+  "previousDelivery": zod.number()
 })
 
 
@@ -129,6 +132,7 @@ export const GetGeneratorResponse = zod.object({
   "rating": zod.string().nullish(),
   "hours": zod.number().nullish(),
   "remarks": zod.string().nullish(),
+  "deliveryStatus": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -147,7 +151,8 @@ export const UpdateGeneratorBody = zod.object({
   "status": zod.string().optional(),
   "rating": zod.string().optional(),
   "hours": zod.number().optional(),
-  "remarks": zod.string().optional()
+  "remarks": zod.string().optional(),
+  "deliveryStatus": zod.string().optional()
 })
 
 export const UpdateGeneratorResponse = zod.object({
@@ -158,6 +163,7 @@ export const UpdateGeneratorResponse = zod.object({
   "rating": zod.string().nullish(),
   "hours": zod.number().nullish(),
   "remarks": zod.string().nullish(),
+  "deliveryStatus": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
