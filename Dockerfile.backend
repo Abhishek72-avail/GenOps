@@ -1,0 +1,44 @@
+# ─── Stage 1: deps + build ───────────────────────────────────────────────────
+FROM node:24-alpine AS builder
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@10 --activate
+
+WORKDIR /app
+
+# Copy workspace manifests first (for layer caching)
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY tsconfig.base.json tsconfig.json ./
+
+# Copy all package.json files needed by the monorepo
+COPY lib/db/package.json ./lib/db/package.json
+COPY lib/api-spec/package.json ./lib/api-spec/package.json
+COPY lib/api-zod/package.json ./lib/api-zod/package.json
+COPY lib/api-client-react/package.json ./lib/api-client-react/package.json
+COPY artifacts/api-server/package.json ./artifacts/api-server/package.json
+
+# Install all workspace deps
+# --config.minimumReleaseAge=0 bypasses the 1440-min publish-age check in pnpm-workspace.yaml
+RUN pnpm install --frozen-lockfile --config.minimumReleaseAge=0
+
+# Copy source for packages the api-server depends on
+COPY lib/ ./lib/
+COPY artifacts/api-server/ ./artifacts/api-server/
+
+# Build the api-server bundle
+RUN pnpm --filter @workspace/api-server run build
+
+# ─── Stage 2: lean runtime ───────────────────────────────────────────────────
+FROM node:24-alpine AS runtime
+
+WORKDIR /app
+
+# We only need the built dist and pino workers
+COPY --from=builder /app/artifacts/api-server/dist ./dist
+
+EXPOSE 5000
+
+ENV NODE_ENV=production
+ENV PORT=5000
+
+CMD ["node", "--enable-source-maps", "./dist/index.mjs"]

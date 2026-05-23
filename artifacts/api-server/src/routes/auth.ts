@@ -18,7 +18,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Invalid username or password" });
     return;
   }
-  (req.session as Record<string, unknown>).userId = user.id;
+  (req.session as any).userId = user.id;
   res.json({ user: { id: user.id, username: user.username, email: user.email }, message: "Logged in" });
 });
 
@@ -36,7 +36,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   }
   const passwordHash = hashPassword(password);
   const [user] = await db.insert(usersTable).values({ username, email, passwordHash }).returning();
-  (req.session as Record<string, unknown>).userId = user.id;
+  (req.session as any).userId = user.id;
   res.status(201).json({ user: { id: user.id, username: user.username, email: user.email }, message: "Registered" });
 });
 
@@ -47,7 +47,7 @@ router.post("/auth/logout", async (req, res): Promise<void> => {
 });
 
 router.get("/auth/me", async (req, res): Promise<void> => {
-  const userId = (req.session as Record<string, unknown>).userId as number | undefined;
+  const userId = (req.session as any).userId as number | undefined;
   if (!userId) {
     res.status(401).json({ error: "Not authenticated" });
     return;

@@ -35,29 +35,30 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string }> = {
-  "Ready":            { bg: "#f0fdf4", text: "#15803d", dot: "#22c55e" },
-  "Under Repair":     { bg: "#fffbeb", text: "#d97706", dot: "#f59e0b" },
-  "Under Readiness":  { bg: "#eff6ff", text: "#1d4ed8", dot: "#3b82f6" },
-  "Other":            { bg: "#f8fafc", text: "#64748b", dot: "#94a3b8" },
+  "Ready": { bg: "#f0fdf4", text: "#15803d", dot: "#22c55e" },
+  "Used Ready": { bg: "#fefce8", text: "#a86405ff", dot: "#f3c334ff" },
+  "Under Repair": { bg: "#fffbeb", text: "#d97706", dot: "#f59e0b" },
+  "Under Readiness": { bg: "#eff6ff", text: "#1d4ed8", dot: "#3b82f6" },
+  "Other": { bg: "#f8fafc", text: "#64748b", dot: "#94a3b8" },
 };
 
-const STATUSES = ["Ready", "Under Repair", "Under Readiness", "Other"];
+const STATUSES = ["Ready", "Used Ready", "Under Repair", "Under Readiness", "Other"];
 
 const CPANELS = [
-  { id: "C7",  label: "C7 - ECW",         prefixes: ["ECW"] },
-  { id: "C9",  label: "C9 - LX9",         prefixes: ["LX9"] },
-  { id: "C13", label: "C13 - DH40",        prefixes: ["DH40"] },
-  { id: "C15", label: "C15 - LXJ/2S300",   prefixes: ["LXJ", "2S300"] },
-  { id: "C18", label: "C18 - LXK",         prefixes: ["LXK"] },
+  { id: "C7", label: "C7 - ECW", prefixes: ["ECW"] },
+  { id: "C9", label: "C9 - LX9", prefixes: ["LX9"] },
+  { id: "C13", label: "C13 - DH40", prefixes: ["DH40"] },
+  { id: "C15", label: "C15 - LXJ/2S300", prefixes: ["LXJ", "2S300"] },
+  { id: "C18", label: "C18 - LXK", prefixes: ["LXK"] },
 ] as const;
 
 function getGeneratorPanel(generatorId: string): string {
   const id = (generatorId || "").toUpperCase().trim();
-  if (id.startsWith("ECW"))  return "C7";
-  if (id.startsWith("LX9"))  return "C9";
+  if (id.startsWith("ECW")) return "C7";
+  if (id.startsWith("LX9")) return "C9";
   if (id.startsWith("DH40")) return "C13";
   if (id.startsWith("LXJ") || id.startsWith("2S300")) return "C15";
-  if (id.startsWith("LXK"))  return "C18";
+  if (id.startsWith("LXK")) return "C18";
   return "Other";
 }
 
@@ -112,6 +113,17 @@ function StatCard({
 }
 
 const TODAY = new Date().toISOString().split("T")[0];
+
+function formatDate(dateStr: string): string {
+  if (!dateStr) return "-";
+  const parts = dateStr.split("-");
+  if (parts.length === 3) {
+    const [year, month, day] = parts;
+    return `${day}-${month}-${year}`;
+  }
+  return dateStr;
+}
+
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
@@ -314,7 +326,7 @@ export default function Dashboard() {
             <StatCard icon={<Database className="w-5 h-5" />} label="Total Records" value={stats.total} />
             <StatCard
               icon={<Zap className="w-5 h-5" />}
-              label="C Panel"
+              label="Model"
               value={cpanelTotal}
               accent="#7c3aed"
               onClick={() => {
@@ -341,8 +353,8 @@ export default function Dashboard() {
               style={{ borderColor: "#7c3aed33" }}
             >
               <div className="px-5 py-4 border-b" style={{ borderColor: "#f3f0ff", background: "#faf5ff" }}>
-                <h3 className="text-sm font-bold" style={{ color: "#7c3aed" }}>C Panel — Sub-Panels</h3>
-                <p className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>Click a panel to view its stats and filter the table below</p>
+                <h3 className="text-sm font-bold" style={{ color: "#7c3aed" }}>Model — Sub-Panels</h3>
+                <p className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>Click a model to view its stats and filter the table below</p>
               </div>
 
               <div className="p-5">
@@ -468,6 +480,7 @@ export default function Dashboard() {
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="Ready">Ready</SelectItem>
+                  <SelectItem value="Used Ready">Used Ready</SelectItem>
                   <SelectItem value="Under Repair">Under Repair</SelectItem>
                   <SelectItem value="Under Readiness">Under Readiness</SelectItem>
                   <SelectItem value="Other">Other</SelectItem>
@@ -498,7 +511,7 @@ export default function Dashboard() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                  {["Date", "Generator ID", "C Panel", "Status", "Rating", "Hours", "Remarks", "D", ""].map(h => (
+                  {["Date", "GENSET ID", "Model", "Status", "Rating", "Hours", "Remarks", "D", ""].map(h => (
                     <th key={h} className="text-left px-5 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: "#6b7280" }}>{h}</th>
                   ))}
                 </tr>
@@ -520,7 +533,7 @@ export default function Dashboard() {
                         className="hover:bg-orange-50/40 transition-colors"
                         data-testid={`row-generator-${record.id}`}
                       >
-                        <td className="px-5 py-3.5 font-medium" style={{ color: "#374151" }}>{record.tDate}</td>
+                        <td className="px-5 py-3.5 font-medium" style={{ color: "#374151" }}>{formatDate(record.tDate)}</td>
                         <td className="px-5 py-3.5">
                           <span className="font-semibold" style={{ color: "#111827" }}>{record.generatorId}</span>
                         </td>
@@ -681,7 +694,7 @@ export default function Dashboard() {
                         name="generatorId"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-sm font-medium" style={{ color: "#374151" }}>Generator ID</FormLabel>
+                            <FormLabel className="text-sm font-medium" style={{ color: "#374151" }}>GENSET ID</FormLabel>
                             <FormControl>
                               <Input placeholder="e.g. ECW-001, LX9-02" className="h-10 bg-gray-50 border-gray-200" data-testid="input-generator-id" {...field} />
                             </FormControl>
@@ -706,6 +719,7 @@ export default function Dashboard() {
                               </FormControl>
                               <SelectContent>
                                 <SelectItem value="Ready">Ready</SelectItem>
+                                <SelectItem value="Used Ready">Used Ready</SelectItem>
                                 <SelectItem value="Under Repair">Under Repair</SelectItem>
                                 <SelectItem value="Under Readiness">Under Readiness</SelectItem>
                                 <SelectItem value="Other">Other</SelectItem>

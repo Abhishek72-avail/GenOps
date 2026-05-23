@@ -43,3 +43,8 @@ _Populate as you build — sharp edges, "always run X before Y" rules._
 ## Pointers
 
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+
+
+FNT  pnpm --filter @workspace/generator-mgmt dev
+BKE pnpm --filter @workspace/api-server dev
+db pnpm --filter @workspace/db dev or pnpm --filter @workspace/db exec drizzle-kit studio
