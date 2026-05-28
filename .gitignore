@@ -52,3 +52,4 @@ Thumbs.db
 .env
 .env.example
 .env.backup
+.npmrc
