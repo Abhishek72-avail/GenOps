@@ -28,7 +28,8 @@ export const LoginResponse = zod.object({
   "user": zod.object({
   "id": zod.number(),
   "username": zod.string(),
-  "email": zod.string().nullish()
+  "email": zod.string(),
+  "sheetLink": zod.string()
 }),
   "message": zod.string()
 })
@@ -40,7 +41,8 @@ export const LoginResponse = zod.object({
 export const RegisterBody = zod.object({
   "username": zod.string(),
   "email": zod.string(),
-  "password": zod.string()
+  "password": zod.string(),
+  "sheetLink": zod.string()
 })
 
 
@@ -58,7 +60,8 @@ export const LogoutResponse = zod.object({
 export const GetMeResponse = zod.object({
   "id": zod.number(),
   "username": zod.string(),
-  "email": zod.string().nullish()
+  "email": zod.string(),
+  "sheetLink": zod.string()
 })
 
 
@@ -82,6 +85,7 @@ export const ListGeneratorsResponseItem = zod.object({
   "hours": zod.number().nullish(),
   "remarks": zod.string().nullish(),
   "deliveryStatus": zod.string().nullish(),
+  "deliveryTo": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -133,6 +137,7 @@ export const GetGeneratorResponse = zod.object({
   "hours": zod.number().nullish(),
   "remarks": zod.string().nullish(),
   "deliveryStatus": zod.string().nullish(),
+  "deliveryTo": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -152,7 +157,8 @@ export const UpdateGeneratorBody = zod.object({
   "rating": zod.string().optional(),
   "hours": zod.number().optional(),
   "remarks": zod.string().optional(),
-  "deliveryStatus": zod.string().optional()
+  "deliveryStatus": zod.string().optional(),
+  "deliveryTo": zod.string().nullish()
 })
 
 export const UpdateGeneratorResponse = zod.object({
@@ -164,6 +170,7 @@ export const UpdateGeneratorResponse = zod.object({
   "hours": zod.number().nullish(),
   "remarks": zod.string().nullish(),
   "deliveryStatus": zod.string().nullish(),
+  "deliveryTo": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })

@@ -48,3 +48,24 @@ _Populate as you build — sharp edges, "always run X before Y" rules._
 FNT  pnpm --filter @workspace/generator-mgmt dev
 BKE pnpm --filter @workspace/api-server dev
 db pnpm --filter @workspace/db dev or pnpm --filter @workspace/db exec drizzle-kit studio
+
+
+
+
+# 1. Environment Variables सेट करें
+$env:DATABASE_URL="postgresql://gmsuser:gmspassword@localhost:5432/generatordb"
+$env:PORT="5000"
+$env:SESSION_SECRET="super-secret-change-in-production"
+
+# 2. Backend Server को डेवलपमेंट मोड में रन करें
+pnpm --filter @workspace/api-server run dev
+
+
+# Frontend को डेवलपमेंट मोड में रन करें (port 3070 पर)
+pnpm --filter @workspace/generator-mgmt run dev
+
+$env:DATABASE_URL="postgresql://gmsuser:gmspassword@localhost:5432/generatordb"
+pnpm --filter @workspace/db exec drizzle-kit studio
+
+
+

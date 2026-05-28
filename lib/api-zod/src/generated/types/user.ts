@@ -9,6 +9,6 @@
 export interface User {
   id: number;
   username: string;
-  /** @nullable */
-  email?: string | null;
+  email: string;
+  sheetLink: string;
 }

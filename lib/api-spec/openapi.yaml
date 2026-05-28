@@ -295,10 +295,14 @@ components:
         username:
           type: string
         email:
-          type: ["string", "null"]
+          type: string
+        sheetLink:
+          type: string
       required:
         - id
         - username
+        - email
+        - sheetLink
 
     LoginInput:
       type: object
@@ -320,10 +324,13 @@ components:
           type: string
         password:
           type: string
+        sheetLink:
+          type: string
       required:
         - username
         - email
         - password
+        - sheetLink
 
     AuthResponse:
       type: object
@@ -354,6 +361,8 @@ components:
         remarks:
           type: ["string", "null"]
         deliveryStatus:
+          type: ["string", "null"]
+        deliveryTo:
           type: ["string", "null"]
         createdAt:
           type: string
@@ -404,6 +413,8 @@ components:
           type: string
         deliveryStatus:
           type: string
+        deliveryTo:
+          type: ["string", "null"]
 
     GeneratorStats:
       type: object

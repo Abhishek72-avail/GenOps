@@ -14,4 +14,6 @@ export interface GeneratorUpdate {
   hours?: number;
   remarks?: string;
   deliveryStatus?: string;
+  /** @nullable */
+  deliveryTo?: string | null;
 }

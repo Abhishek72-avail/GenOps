@@ -20,8 +20,8 @@ export interface MessageResponse {
 export interface User {
   id: number;
   username: string;
-  /** @nullable */
-  email?: string | null;
+  email: string;
+  sheetLink: string;
 }
 
 export interface LoginInput {
@@ -33,6 +33,7 @@ export interface RegisterInput {
   username: string;
   email: string;
   password: string;
+  sheetLink: string;
 }
 
 export interface AuthResponse {
@@ -53,6 +54,8 @@ export interface GeneratorRecord {
   remarks?: string | null;
   /** @nullable */
   deliveryStatus?: string | null;
+  /** @nullable */
+  deliveryTo?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -74,6 +77,8 @@ export interface GeneratorUpdate {
   hours?: number;
   remarks?: string;
   deliveryStatus?: string;
+  /** @nullable */
+  deliveryTo?: string | null;
 }
 
 export type GeneratorStatsByStatusItem = {
