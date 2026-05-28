@@ -2,6 +2,7 @@ import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import session from "express-session";
+import path from "node:path";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
@@ -47,5 +48,17 @@ app.use(
 );
 
 app.use("/api", router);
+
+if (process.env.NODE_ENV === "production") {
+  const publicPath = path.resolve(__dirname, "../../Frontend/dist/public");
+  app.use(express.static(publicPath));
+  app.get("*", (req, res) => {
+    if (req.originalUrl.startsWith("/api")) {
+      res.status(404).json({ error: "Not Found" });
+      return;
+    }
+    res.sendFile(path.resolve(publicPath, "index.html"));
+  });
+}
 
 export default app;
