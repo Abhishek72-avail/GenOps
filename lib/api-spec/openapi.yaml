@@ -109,6 +109,150 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateMe
+      tags: [auth]
+      summary: Update current user profile settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                customPanels:
+                  type: string
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/demo-users:
+    get:
+      operationId: listDemoUsers
+      tags: [auth]
+      summary: List all demo users for the current admin
+      responses:
+        "200":
+          description: List of demo users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DemoUser"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      operationId: createDemoUser
+      tags: [auth]
+      summary: Create a new demo user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDemoUserInput"
+      responses:
+        "201":
+          description: Demo user created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoUser"
+        "400":
+          description: Bad request (limit reached or invalid input)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/demo-users/{id}:
+    patch:
+      operationId: updateDemoUser
+      tags: [auth]
+      summary: Update a demo user's settings or toggle status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDemoUserInput"
+      responses:
+        "200":
+          description: Demo user updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoUser"
+        "404":
+          description: Demo user not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      operationId: deleteDemoUser
+      tags: [auth]
+      summary: Delete a demo user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          description: Demo user not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /generators:
     get:
@@ -298,11 +442,77 @@ components:
           type: string
         sheetLink:
           type: string
+        customPanels:
+          type: ["string", "null"]
+        isDemoUser:
+          type: boolean
+        permissions:
+          type: string
       required:
         - id
         - username
         - email
         - sheetLink
+
+    DemoUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        permissions:
+          type: string
+        isActive:
+          type: boolean
+        expiresAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - username
+        - permissions
+        - isActive
+        - createdAt
+
+    CreateDemoUserInput:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        permissions:
+          type: string
+        isActive:
+          type: boolean
+        duration:
+          type: string
+      required:
+        - username
+        - password
+        - permissions
+        - isActive
+        - duration
+
+    UpdateDemoUserInput:
+      type: object
+      properties:
+        password:
+          type: string
+        permissions:
+          type: string
+        isActive:
+          type: boolean
+        duration:
+          type: string
+
+    UpdateMeInput:
+      type: object
+      properties:
+        customPanels:
+          type: string
 
     LoginInput:
       type: object

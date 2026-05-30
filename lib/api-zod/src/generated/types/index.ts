@@ -7,6 +7,8 @@
  */
 
 export * from './authResponse';
+export * from './createDemoUserInput';
+export * from './demoUser';
 export * from './errorResponse';
 export * from './generatorInput';
 export * from './generatorRecord';
@@ -18,4 +20,6 @@ export * from './listGeneratorsParams';
 export * from './loginInput';
 export * from './messageResponse';
 export * from './registerInput';
+export * from './updateDemoUserInput';
+export * from './updateMeBody';
 export * from './user';

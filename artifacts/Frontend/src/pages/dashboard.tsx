@@ -22,6 +22,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { motion, AnimatePresence } from "framer-motion";
+import { ProfileModal } from "@/components/profile-modal";
+import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
   tDate: z.string().min(1, "Date is required"),
@@ -138,16 +140,19 @@ function formatDate(dateStr: string): string {
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: user, isLoading: isLoadingUser, isError: isUserError } = useGetMe({
     query: { queryKey: getGetMeQueryKey(), retry: false },
   });
   const logoutMutation = useLogout();
 
-    const [search, setSearch] = useState("");
+  const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<GeneratorRecord | null>(null);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const isReadOnly = !!(user as any)?.isDemoUser && (user as any)?.permissions === "view";
   const [showCPanel, setShowCPanel] = useState(false);
   const [selectedCPanel, setSelectedCPanel] = useState<string | null>(null);
 
@@ -371,6 +376,21 @@ export default function Dashboard() {
   };
 
   const onSubmit = (values: FormValues) => {
+    // Client-side check for duplicate Genset ID
+    const isDuplicate = allGenerators?.some((r) => {
+      if (editingRecord && r.id === editingRecord.id) return false;
+      return r.generatorId.toLowerCase().trim() === values.generatorId.toLowerCase().trim();
+    });
+
+    if (isDuplicate) {
+      toast({
+        title: "Duplicate Genset ID",
+        description: "This genset ID is already exists",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const payload = {
       ...values,
       rating: values.rating || undefined,
@@ -384,9 +404,35 @@ export default function Dashboard() {
       setEditingRecord(null);
     };
     if (editingRecord) {
-      updateMutation.mutate({ id: editingRecord.id, data: payload }, { onSuccess: invalidate });
+      updateMutation.mutate(
+        { id: editingRecord.id, data: payload },
+        {
+          onSuccess: invalidate,
+          onError: (err: any) => {
+            const errMsg = err?.data?.error || err?.message || "Failed to update record";
+            toast({
+              title: "Error",
+              description: errMsg,
+              variant: "destructive",
+            });
+          },
+        }
+      );
     } else {
-      createMutation.mutate({ data: payload }, { onSuccess: invalidate });
+      createMutation.mutate(
+        { data: payload },
+        {
+          onSuccess: invalidate,
+          onError: (err: any) => {
+            const errMsg = err?.data?.error || err?.message || "Failed to create record";
+            toast({
+              title: "Error",
+              description: errMsg,
+              variant: "destructive",
+            });
+          },
+        }
+      );
     }
   };
 
@@ -410,12 +456,30 @@ export default function Dashboard() {
             </span>
           </div>
           <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-2 text-sm" style={{ color: "#6b7280" }}>
-              <div className="w-7 h-7 rounded-full flex items-center justify-center font-semibold text-white text-xs" style={{ background: "#ff6c00" }}>
+            <button
+              onClick={() => setIsProfileOpen(true)}
+              className="hidden md:flex items-center gap-2 text-sm hover:opacity-85 transition-opacity cursor-pointer mr-2 border border-transparent p-1 rounded-lg hover:bg-gray-50"
+              title="Open Profile Settings"
+            >
+              <div className="w-7 h-7 rounded-full flex items-center justify-center font-semibold text-white text-xs bg-orange-500 shadow-sm shadow-orange-500/10">
                 {user.username[0].toUpperCase()}
               </div>
-              <span className="font-medium" style={{ color: "#374151" }}>{user.username}</span>
-            </div>
+              <span className="font-semibold text-gray-700">{user.username}</span>
+              {user.isDemoUser && (
+                <span className="text-[10px] font-bold px-1.5 py-0.25 bg-blue-50 text-blue-600 rounded border border-blue-100 uppercase">
+                  Guest
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setIsProfileOpen(true)}
+              className="flex md:hidden items-center justify-center w-8 h-8 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors mr-1"
+              title="Open Profile Settings"
+            >
+              <div className="w-5 h-5 rounded-full flex items-center justify-center font-bold text-white text-[10px]" style={{ background: "#ff6c00" }}>
+                {user.username[0].toUpperCase()}
+              </div>
+            </button>
             <button
               onClick={handleLogout}
               className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
@@ -496,12 +560,14 @@ export default function Dashboard() {
                 </div>
                 <Button
                   size="sm"
+                  disabled={isReadOnly}
                   onClick={() => {
                     setNewModelNo("");
                     setNewModelPrefix("");
                     setIsAddSubModelOpen(true);
                   }}
-                  className="h-8 px-3 text-xs font-semibold text-purple-600 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg flex items-center gap-1.5 transition-all"
+                  className="h-8 px-3 text-xs font-semibold text-purple-600 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg flex items-center gap-1.5 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={isReadOnly ? "Disabled in view-only guest session" : ""}
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Add New Model
@@ -535,7 +601,7 @@ export default function Dashboard() {
                           {panel.total}
                         </p>
                       </button>
-                      {panel.isCustom && (
+                      {panel.isCustom && !isReadOnly && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -683,9 +749,11 @@ export default function Dashboard() {
             </div>
             <Button
               onClick={openAdd}
-              className="h-9 px-4 text-sm font-semibold text-white rounded-lg flex items-center gap-2 whitespace-nowrap"
+              disabled={isReadOnly}
+              className="h-9 px-4 text-sm font-semibold text-white rounded-lg flex items-center gap-2 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: "#ff6c00" }}
               data-testid="button-add-record"
+              title={isReadOnly ? "Disabled in view-only guest session" : ""}
             >
               <Plus className="w-4 h-4" />
               Add Record
@@ -765,8 +833,9 @@ export default function Dashboard() {
                             {viewMode === "delivery" ? (
                               <button
                                 onClick={() => openReturnModal(record)}
-                                title="Return Generator"
-                                className="p-1.5 rounded-lg transition-colors hover:bg-red-50"
+                                disabled={isReadOnly}
+                                title={isReadOnly ? "Disabled in view-only session" : "Return Generator"}
+                                className="p-1.5 rounded-lg transition-colors hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
                                 style={{
                                   background: "#fef2f2",
                                   border: "1px solid #fee2e2",
@@ -780,13 +849,13 @@ export default function Dashboard() {
                               </button>
                             ) : (
                               (() => {
-                                const isDeliverable = record.status === "Ready" || record.status === "Used Ready";
+                                const isDeliverable = (record.status === "Ready" || record.status === "Used Ready") && !isReadOnly;
                                 const cfg = STATUS_CONFIG[record.status] ?? STATUS_CONFIG["Other"];
                                 return (
                                   <button
                                     onClick={() => openDeliveryModal(record)}
                                     disabled={!isDeliverable}
-                                    title={isDeliverable ? "Deliver Generator" : "Only 'Ready' or 'Used Ready' generators can be delivered"}
+                                    title={isReadOnly ? "Disabled in view-only session" : isDeliverable ? "Deliver Generator" : "Only 'Ready' or 'Used Ready' generators can be delivered"}
                                     className="p-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                     style={{
                                       background: isDeliverable ? cfg.bg : "#f3f4f6",
@@ -808,19 +877,21 @@ export default function Dashboard() {
                           <div className="flex items-center gap-1">
                             <button
                               onClick={() => openEdit(record)}
-                              className="p-1.5 rounded-lg hover:bg-blue-50 transition-colors"
-                              title="Edit"
+                              disabled={isReadOnly}
+                              className="p-1.5 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              title={isReadOnly ? "Disabled in view-only session" : "Edit"}
                               data-testid={`button-edit-${record.id}`}
                             >
-                              <Edit2 className="w-3.5 h-3.5" style={{ color: "#3b82f6" }} />
+                              <Edit2 className="w-3.5 h-3.5" style={{ color: isReadOnly ? "#9ca3af" : "#3b82f6" }} />
                             </button>
                             <button
                               onClick={() => handleDelete(record.id)}
-                              className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
-                              title="Delete"
+                              disabled={isReadOnly}
+                              className="p-1.5 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              title={isReadOnly ? "Disabled in view-only session" : "Delete"}
                               data-testid={`button-delete-${record.id}`}
                             >
-                              <Trash2 className="w-3.5 h-3.5" style={{ color: "#ef4444" }} />
+                              <Trash2 className="w-3.5 h-3.5" style={{ color: isReadOnly ? "#9ca3af" : "#ef4444" }} />
                             </button>
                           </div>
                         </td>
@@ -1251,6 +1322,12 @@ export default function Dashboard() {
           </div>
         )}
       </AnimatePresence>
+
+      <ProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        user={user as any}
+      />
     </div>
   );
 }

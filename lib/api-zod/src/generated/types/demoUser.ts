@@ -6,13 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface User {
+export interface DemoUser {
   id: number;
   username: string;
-  email: string;
-  sheetLink: string;
+  permissions: string;
+  isActive: boolean;
   /** @nullable */
-  customPanels?: string | null;
-  isDemoUser?: boolean;
-  permissions?: string;
+  expiresAt?: string | null;
+  createdAt: string;
 }

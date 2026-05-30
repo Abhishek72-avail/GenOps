@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, and, gte, lte, or } from "drizzle-orm";
-import { db, generatorsTable, usersTable } from "@workspace/db";
+import { eq, ne, ilike, and, gte, lte, or } from "drizzle-orm";
+import { db, generatorsTable, usersTable, demoUsersTable } from "@workspace/db";
 import {
   ListGeneratorsQueryParams,
   CreateGeneratorBody,
@@ -13,13 +13,33 @@ import { syncSheetFromDb, extractSpreadsheetId } from "../lib/sheets";
 
 const router: IRouter = Router();
 
-function requireAuth(req: any, res: any): number | null {
+async function requireAuth(req: any, res: any): Promise<number | null> {
   const userId = (req.session as Record<string, unknown>).userId as number | undefined;
   if (!userId) {
     res.status(401).json({ error: "Not authenticated" });
     return null;
   }
+
+  // If this is a demo user, dynamically check database status and expiration
+  if ((req.session as any).isDemoUser) {
+    const demoUserId = (req.session as any).demoUserId;
+    const [demoUser] = await db.select().from(demoUsersTable).where(eq(demoUsersTable.id, demoUserId));
+    if (!demoUser || !demoUser.isActive || (demoUser.expiresAt && new Date() > new Date(demoUser.expiresAt))) {
+      req.session.destroy(() => {});
+      res.status(401).json({ error: "Your demo session has expired or been deactivated" });
+      return null;
+    }
+  }
+
   return userId;
+}
+
+function requireWritePermission(req: any, res: any): boolean {
+  if (req.session.isDemoUser && req.session.demoPermissions !== "edit") {
+    res.status(403).json({ error: "Write access denied. You only have view-only permissions." });
+    return false;
+  }
+  return true;
 }
 
 async function getAllRowsForSync(userId: number) {
@@ -44,7 +64,7 @@ async function triggerSheetsSync(userId: number) {
 }
 
 router.get("/generators", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (userId === null) return;
 
   const qp = ListGeneratorsQueryParams.safeParse(req.query);
@@ -84,7 +104,7 @@ router.get("/generators", async (req, res): Promise<void> => {
 });
 
 router.get("/generators/stats", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (userId === null) return;
 
   const all = await db.select().from(generatorsTable).where(eq(generatorsTable.userId, userId));
@@ -118,12 +138,28 @@ router.get("/generators/stats", async (req, res): Promise<void> => {
 });
 
 router.post("/generators", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (userId === null) return;
+  if (!requireWritePermission(req, res)) return;
 
   const parsed = CreateGeneratorBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  // Check if a generator with the same generatorId already exists for this user
+  const existing = await db
+    .select()
+    .from(generatorsTable)
+    .where(
+      and(
+        eq(generatorsTable.userId, userId),
+        ilike(generatorsTable.generatorId, parsed.data.generatorId.trim())
+      )
+    );
+  if (existing.length > 0) {
+    res.status(400).json({ error: "This genset ID is already exists" });
     return;
   }
 
@@ -143,7 +179,7 @@ router.post("/generators", async (req, res): Promise<void> => {
 });
 
 router.get("/generators/:id", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (userId === null) return;
 
   const params = GetGeneratorParams.safeParse(req.params);
@@ -170,8 +206,9 @@ router.get("/generators/:id", async (req, res): Promise<void> => {
 });
 
 router.patch("/generators/:id", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (userId === null) return;
+  if (!requireWritePermission(req, res)) return;
 
   const params = UpdateGeneratorParams.safeParse(req.params);
   if (!params.success) {
@@ -183,6 +220,23 @@ router.patch("/generators/:id", async (req, res): Promise<void> => {
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
+  }
+
+  if (parsed.data.generatorId) {
+    const existing = await db
+      .select()
+      .from(generatorsTable)
+      .where(
+        and(
+          eq(generatorsTable.userId, userId),
+          ilike(generatorsTable.generatorId, parsed.data.generatorId.trim()),
+          ne(generatorsTable.id, params.data.id)
+        )
+      );
+    if (existing.length > 0) {
+      res.status(400).json({ error: "This genset ID is already exists" });
+      return;
+    }
   }
 
   const [record] = await db
@@ -207,8 +261,9 @@ router.patch("/generators/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/generators/:id", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (userId === null) return;
+  if (!requireWritePermission(req, res)) return;
 
   const params = DeleteGeneratorParams.safeParse(req.params);
   if (!params.success) {

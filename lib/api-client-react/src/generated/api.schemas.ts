@@ -22,6 +22,35 @@ export interface User {
   username: string;
   email: string;
   sheetLink: string;
+  /** @nullable */
+  customPanels?: string | null;
+  isDemoUser?: boolean;
+  permissions?: string;
+}
+
+export interface DemoUser {
+  id: number;
+  username: string;
+  permissions: string;
+  isActive: boolean;
+  /** @nullable */
+  expiresAt?: string | null;
+  createdAt: string;
+}
+
+export interface CreateDemoUserInput {
+  username: string;
+  password: string;
+  permissions: string;
+  isActive: boolean;
+  duration: string;
+}
+
+export interface UpdateDemoUserInput {
+  password?: string;
+  permissions?: string;
+  isActive?: boolean;
+  duration?: string;
 }
 
 export interface LoginInput {
@@ -95,6 +124,10 @@ export interface GeneratorStats {
   currentDelivery: number;
   previousDelivery: number;
 }
+
+export type UpdateMeBody = {
+  customPanels?: string;
+};
 
 export type ListGeneratorsParams = {
 search?: string;

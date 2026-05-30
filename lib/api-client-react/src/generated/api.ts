@@ -21,6 +21,8 @@ import type {
 
 import type {
   AuthResponse,
+  CreateDemoUserInput,
+  DemoUser,
   ErrorResponse,
   GeneratorInput,
   GeneratorRecord,
@@ -31,6 +33,8 @@ import type {
   LoginInput,
   MessageResponse,
   RegisterInput,
+  UpdateDemoUserInput,
+  UpdateMeBody,
   User
 } from './api.schemas';
 
@@ -411,6 +415,367 @@ export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = Err
 
 
 
+
+export const getUpdateMeUrl = () => {
+
+
+
+
+  return `/api/auth/me`
+}
+
+/**
+ * @summary Update current user profile settings
+ */
+export const updateMe = async (updateMeBody: UpdateMeBody, options?: RequestInit): Promise<User> => {
+
+  return customFetch<User>(getUpdateMeUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateMeBody,)
+  }
+);}
+
+
+
+
+export const getUpdateMeMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMe>>, TError,{data: BodyType<UpdateMeBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMe>>, TError,{data: BodyType<UpdateMeBody>}, TContext> => {
+
+const mutationKey = ['updateMe'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMe>>, {data: BodyType<UpdateMeBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateMe(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMeMutationResult = NonNullable<Awaited<ReturnType<typeof updateMe>>>
+    export type UpdateMeMutationBody = BodyType<UpdateMeBody>
+    export type UpdateMeMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Update current user profile settings
+ */
+export const useUpdateMe = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMe>>, TError,{data: BodyType<UpdateMeBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateMe>>,
+        TError,
+        {data: BodyType<UpdateMeBody>},
+        TContext
+      > => {
+      return useMutation(getUpdateMeMutationOptions(options));
+    }
+
+export const getListDemoUsersUrl = () => {
+
+
+
+
+  return `/api/auth/demo-users`
+}
+
+/**
+ * @summary List all demo users for the current admin
+ */
+export const listDemoUsers = async ( options?: RequestInit): Promise<DemoUser[]> => {
+
+  return customFetch<DemoUser[]>(getListDemoUsersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDemoUsersQueryKey = () => {
+    return [
+    `/api/auth/demo-users`
+    ] as const;
+    }
+
+
+export const getListDemoUsersQueryOptions = <TData = Awaited<ReturnType<typeof listDemoUsers>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDemoUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDemoUsersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDemoUsers>>> = ({ signal }) => listDemoUsers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDemoUsers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDemoUsersQueryResult = NonNullable<Awaited<ReturnType<typeof listDemoUsers>>>
+export type ListDemoUsersQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary List all demo users for the current admin
+ */
+
+export function useListDemoUsers<TData = Awaited<ReturnType<typeof listDemoUsers>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDemoUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDemoUsersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateDemoUserUrl = () => {
+
+
+
+
+  return `/api/auth/demo-users`
+}
+
+/**
+ * @summary Create a new demo user
+ */
+export const createDemoUser = async (createDemoUserInput: CreateDemoUserInput, options?: RequestInit): Promise<DemoUser> => {
+
+  return customFetch<DemoUser>(getCreateDemoUserUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      createDemoUserInput,)
+  }
+);}
+
+
+
+
+export const getCreateDemoUserMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDemoUser>>, TError,{data: BodyType<CreateDemoUserInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createDemoUser>>, TError,{data: BodyType<CreateDemoUserInput>}, TContext> => {
+
+const mutationKey = ['createDemoUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createDemoUser>>, {data: BodyType<CreateDemoUserInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createDemoUser(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateDemoUserMutationResult = NonNullable<Awaited<ReturnType<typeof createDemoUser>>>
+    export type CreateDemoUserMutationBody = BodyType<CreateDemoUserInput>
+    export type CreateDemoUserMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Create a new demo user
+ */
+export const useCreateDemoUser = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDemoUser>>, TError,{data: BodyType<CreateDemoUserInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createDemoUser>>,
+        TError,
+        {data: BodyType<CreateDemoUserInput>},
+        TContext
+      > => {
+      return useMutation(getCreateDemoUserMutationOptions(options));
+    }
+
+export const getUpdateDemoUserUrl = (id: number,) => {
+
+
+
+
+  return `/api/auth/demo-users/${id}`
+}
+
+/**
+ * @summary Update a demo user's settings or toggle status
+ */
+export const updateDemoUser = async (id: number,
+    updateDemoUserInput: UpdateDemoUserInput, options?: RequestInit): Promise<DemoUser> => {
+
+  return customFetch<DemoUser>(getUpdateDemoUserUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateDemoUserInput,)
+  }
+);}
+
+
+
+
+export const getUpdateDemoUserMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDemoUser>>, TError,{id: number;data: BodyType<UpdateDemoUserInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateDemoUser>>, TError,{id: number;data: BodyType<UpdateDemoUserInput>}, TContext> => {
+
+const mutationKey = ['updateDemoUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateDemoUser>>, {id: number;data: BodyType<UpdateDemoUserInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateDemoUser(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateDemoUserMutationResult = NonNullable<Awaited<ReturnType<typeof updateDemoUser>>>
+    export type UpdateDemoUserMutationBody = BodyType<UpdateDemoUserInput>
+    export type UpdateDemoUserMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Update a demo user's settings or toggle status
+ */
+export const useUpdateDemoUser = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDemoUser>>, TError,{id: number;data: BodyType<UpdateDemoUserInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateDemoUser>>,
+        TError,
+        {id: number;data: BodyType<UpdateDemoUserInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateDemoUserMutationOptions(options));
+    }
+
+export const getDeleteDemoUserUrl = (id: number,) => {
+
+
+
+
+  return `/api/auth/demo-users/${id}`
+}
+
+/**
+ * @summary Delete a demo user
+ */
+export const deleteDemoUser = async (id: number, options?: RequestInit): Promise<MessageResponse> => {
+
+  return customFetch<MessageResponse>(getDeleteDemoUserUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteDemoUserMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDemoUser>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteDemoUser>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteDemoUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteDemoUser>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteDemoUser(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteDemoUserMutationResult = NonNullable<Awaited<ReturnType<typeof deleteDemoUser>>>
+
+    export type DeleteDemoUserMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Delete a demo user
+ */
+export const useDeleteDemoUser = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDemoUser>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteDemoUser>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteDemoUserMutationOptions(options));
+    }
 
 export const getListGeneratorsUrl = (params?: ListGeneratorsParams,) => {
   const normalizedParams = new URLSearchParams();

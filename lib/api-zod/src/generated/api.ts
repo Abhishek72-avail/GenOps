@@ -29,7 +29,10 @@ export const LoginResponse = zod.object({
   "id": zod.number(),
   "username": zod.string(),
   "email": zod.string(),
-  "sheetLink": zod.string()
+  "sheetLink": zod.string(),
+  "customPanels": zod.string().nullish(),
+  "isDemoUser": zod.boolean().optional(),
+  "permissions": zod.string().optional()
 }),
   "message": zod.string()
 })
@@ -61,7 +64,90 @@ export const GetMeResponse = zod.object({
   "id": zod.number(),
   "username": zod.string(),
   "email": zod.string(),
-  "sheetLink": zod.string()
+  "sheetLink": zod.string(),
+  "customPanels": zod.string().nullish(),
+  "isDemoUser": zod.boolean().optional(),
+  "permissions": zod.string().optional()
+})
+
+
+/**
+ * @summary Update current user profile settings
+ */
+export const UpdateMeBody = zod.object({
+  "customPanels": zod.string().optional()
+})
+
+export const UpdateMeResponse = zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "email": zod.string(),
+  "sheetLink": zod.string(),
+  "customPanels": zod.string().nullish(),
+  "isDemoUser": zod.boolean().optional(),
+  "permissions": zod.string().optional()
+})
+
+
+/**
+ * @summary List all demo users for the current admin
+ */
+export const ListDemoUsersResponseItem = zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "permissions": zod.string(),
+  "isActive": zod.boolean(),
+  "expiresAt": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const ListDemoUsersResponse = zod.array(ListDemoUsersResponseItem)
+
+
+/**
+ * @summary Create a new demo user
+ */
+export const CreateDemoUserBody = zod.object({
+  "username": zod.string(),
+  "password": zod.string(),
+  "permissions": zod.string(),
+  "isActive": zod.boolean(),
+  "duration": zod.string()
+})
+
+
+/**
+ * @summary Update a demo user's settings or toggle status
+ */
+export const UpdateDemoUserParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateDemoUserBody = zod.object({
+  "password": zod.string().optional(),
+  "permissions": zod.string().optional(),
+  "isActive": zod.boolean().optional(),
+  "duration": zod.string().optional()
+})
+
+export const UpdateDemoUserResponse = zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "permissions": zod.string(),
+  "isActive": zod.boolean(),
+  "expiresAt": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a demo user
+ */
+export const DeleteDemoUserParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteDemoUserResponse = zod.object({
+  "message": zod.string()
 })
 
 
