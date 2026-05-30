@@ -1,2 +1,6 @@
 [build]
-buildCommand = "npm install -g pnpm && pnpm install --no-frozen-lockfile && npx esbuild --version || true && pnpm run build"
+buildCommand = "npm install -g pnpm@9.15.9 && pnpm install --no-frozen-lockfile && pnpm run build"
+
+[build.env]
+ESBUILD_SKIP_DOWNLOAD_BINARY = "false"
+npm_config_ignore_scripts = "false"
