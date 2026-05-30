@@ -1,0 +1,5 @@
+[build]
+buildCommand = "pnpm run build"
+
+[variables]
+RAILPACK_INSTALL_CMD = "pnpm install --no-frozen-lockfile"
