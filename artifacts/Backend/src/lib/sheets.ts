@@ -7,21 +7,23 @@ const HEADERS = ["Date", "Generator ID", "Status", "Rating", "Hours", "Remarks"]
 const DELIVERY_HEADERS = ["Date", "Generator ID", "Status", "Rating", "Hours", "Remarks", "Delivery Status", "Delivered To"];
 
 export const PANEL_SHEETS = [
-  { id: "C7",  title: "C7 - ECW",         prefixes: ["ECW"] },
-  { id: "C9",  title: "C9 - LX9",         prefixes: ["LX9"] },
-  { id: "C13", title: "C13 - DH40",        prefixes: ["DH40"] },
-  { id: "C15", title: "C15 - LXJ/2S300",   prefixes: ["LXJ", "2S300"] },
-  { id: "C18", title: "C18 - LXK",         prefixes: ["LXK"] },
+  { id: "C7", title: "C7 - ECW", prefixes: ["ECW"] },
+  { id: "C9", title: "C9 - LX9", prefixes: ["LX9"] },
+  { id: "C13", title: "C13 - DH40", prefixes: ["DH40"] },
+  { id: "C15", title: "C15 - LXJ/2S300", prefixes: ["LXJ", "2S300"] },
+  { id: "C18", title: "C18 - LXK", prefixes: ["LXK"] },
+  // { id: "C20", title: "C20 - ABC",         prefixes: ["ABC"] },
 ] as const;
 
 /** Maps a Generator ID prefix to its C Panel ID, or "Other" if unrecognised. */
 export function getGeneratorPanel(generatorId: string): string {
   const id = (generatorId || "").toUpperCase().trim();
-  if (id.startsWith("ECW"))  return "C7";
-  if (id.startsWith("LX9"))  return "C9";
+  if (id.startsWith("ECW")) return "C7";
+  if (id.startsWith("LX9")) return "C9";
   if (id.startsWith("DH40")) return "C13";
   if (id.startsWith("LXJ") || id.startsWith("2S300")) return "C15";
-  if (id.startsWith("LXK"))  return "C18";
+  if (id.startsWith("LXK")) return "C18";
+  // if (id.startsWith("ABC"))  return "C20";
   return "Other";
 }
 

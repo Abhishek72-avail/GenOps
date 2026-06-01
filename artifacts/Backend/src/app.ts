@@ -40,8 +40,11 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      // secure: process.env.NODE_ENV === "production",
+      // sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      // COOKIE_SECURE=false for local Docker (HTTP), true only for HTTPS production
+      secure: process.env.COOKIE_SECURE === "true",
+      sameSite: process.env.COOKIE_SECURE === "true" ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     },
   }),
@@ -52,7 +55,8 @@ app.use("/api", router);
 if (process.env.NODE_ENV === "production") {
   const publicPath = path.resolve(__dirname, "../../Frontend/dist/public");
   app.use(express.static(publicPath));
-  app.get("*", (req, res) => {
+  // app.get("*", (req, res) => {
+  app.get("/{*splat}", (req, res) => {
     if (req.originalUrl.startsWith("/api")) {
       res.status(404).json({ error: "Not Found" });
       return;

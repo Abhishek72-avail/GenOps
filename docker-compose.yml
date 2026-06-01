@@ -43,6 +43,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-gmsuser}:${POSTGRES_PASSWORD:-gmspassword}@db:5432/${POSTGRES_DB:-generatordb}
       SESSION_SECRET: ${SESSION_SECRET:-super-secret-change-in-production}
       NODE_ENV: production
+      COOKIE_SECURE: "false"
     ports:
       - "5000:5000"
     depends_on:
