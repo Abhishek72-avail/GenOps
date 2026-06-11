@@ -10,6 +10,7 @@ import {
   DeleteGeneratorParams,
 } from "@workspace/api-zod";
 import { syncSheetFromDb, extractSpreadsheetId } from "../lib/sheets";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -56,10 +57,10 @@ async function triggerSheetsSync(userId: number) {
     if (user && user.sheetLink) {
       const spreadsheetId = extractSpreadsheetId(user.sheetLink);
       const rows = await getAllRowsForSync(userId);
-      await syncSheetFromDb(rows, spreadsheetId);
+      await syncSheetFromDb(rows, spreadsheetId, user.customPanels);
     }
   } catch (err) {
-    // Fail silently in background
+    logger.error({ err }, "Error in triggerSheetsSync");
   }
 }
 

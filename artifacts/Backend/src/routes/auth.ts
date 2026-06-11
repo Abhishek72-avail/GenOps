@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
 import { eq, or, and } from "drizzle-orm";
-import { db, usersTable, demoUsersTable } from "@workspace/db";
-import { LoginBody, RegisterBody, CreateDemoUserBody, UpdateDemoUserBody } from "@workspace/api-zod";
+import { db, usersTable, demoUsersTable, generatorsTable } from "@workspace/db";
+import { LoginBody, RegisterBody, CreateDemoUserBody, UpdateDemoUserBody, UpdateMeBody } from "@workspace/api-zod";
 import { hashPassword, verifyPassword } from "../lib/auth";
+import { syncSheetFromDb, extractSpreadsheetId } from "../lib/sheets";
 
 const router: IRouter = Router();
 
@@ -37,7 +38,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     (req.session as any).userId = user.id;
     (req.session as any).isDemoUser = false;
     res.json({
-      user: { id: user.id, username: user.username, email: user.email, sheetLink: user.sheetLink, isDemoUser: false },
+      user: { id: user.id, username: user.username, email: user.email, sheetLink: user.sheetLink, customPanels: user.customPanels, isDemoUser: false },
       message: "Logged in"
     });
     return;
@@ -77,6 +78,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
         username: demoUser.username,
         email: admin.email,
         sheetLink: admin.sheetLink,
+        customPanels: admin.customPanels,
         isDemoUser: true,
         permissions: demoUser.permissions,
       },
@@ -117,7 +119,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   (req.session as any).isDemoUser = false;
 
   res.status(201).json({
-    user: { id: user.id, username: user.username, email: user.email, sheetLink: user.sheetLink, isDemoUser: false },
+    user: { id: user.id, username: user.username, email: user.email, sheetLink: user.sheetLink, customPanels: user.customPanels, isDemoUser: false },
     message: "Registered"
   });
 });
@@ -126,6 +128,53 @@ router.post("/auth/logout", async (req, res): Promise<void> => {
   req.session.destroy(() => {
     res.json({ message: "Logged out" });
   });
+});
+
+/**
+ * POST /auth/verify-password
+ * Verifies the current session user's password (used by the "Open Sheet" feature).
+ * Does NOT modify the session. Returns { success: true } or 401.
+ */
+router.post("/auth/verify-password", async (req, res): Promise<void> => {
+  const userId = (req.session as any).userId as number | undefined;
+  if (!userId) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  const { password } = req.body;
+  if (!password || typeof password !== "string") {
+    res.status(400).json({ error: "Password is required" });
+    return;
+  }
+
+  // Demo user — verify their own demo account password
+  if ((req.session as any).isDemoUser) {
+    const demoUserId = (req.session as any).demoUserId;
+    const [demoUser] = await db.select().from(demoUsersTable).where(eq(demoUsersTable.id, demoUserId));
+    if (!demoUser) {
+      res.status(401).json({ error: "User not found" });
+      return;
+    }
+    if (!verifyPassword(password, demoUser.passwordHash)) {
+      res.status(401).json({ error: "Incorrect password. Please try again." });
+      return;
+    }
+    res.json({ success: true });
+    return;
+  }
+
+  // Admin user — verify their own password
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) {
+    res.status(401).json({ error: "User not found" });
+    return;
+  }
+  if (!verifyPassword(password, user.passwordHash)) {
+    res.status(401).json({ error: "Incorrect password. Please try again." });
+    return;
+  }
+  res.json({ success: true });
 });
 
 router.get("/auth/me", async (req, res): Promise<void> => {
@@ -155,6 +204,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
       username: demoUser.username,
       email: admin.email,
       sheetLink: admin.sheetLink,
+      customPanels: admin.customPanels,
       isDemoUser: true,
       permissions: demoUser.permissions,
     });
@@ -166,7 +216,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     res.status(401).json({ error: "User not found" });
     return;
   }
-  res.json({ id: user.id, username: user.username, email: user.email, sheetLink: user.sheetLink, isDemoUser: false });
+  res.json({ id: user.id, username: user.username, email: user.email, sheetLink: user.sheetLink, customPanels: user.customPanels, isDemoUser: false });
 });
 
 // Demo User CRUD routes
@@ -368,6 +418,81 @@ router.delete("/auth/demo-users/:id", async (req, res): Promise<void> => {
     .where(eq(demoUsersTable.id, demoId));
 
   res.json({ message: "Demo user deleted successfully" });
+});
+
+router.patch("/auth/me", async (req, res): Promise<void> => {
+  const userId = (req.session as any).userId as number | undefined;
+  if (!userId) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  // If this is a demo user, they must have edit permissions to change custom panels
+  if ((req.session as any).isDemoUser) {
+    if ((req.session as any).demoPermissions !== "edit") {
+      res.status(403).json({ error: "Write access denied. You only have view-only permissions." });
+      return;
+    }
+  }
+
+  const parsed = UpdateMeBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { customPanels } = parsed.data;
+
+  // Update the user record
+  const [updatedUser] = await db
+    .update(usersTable)
+    .set({ customPanels })
+    .where(eq(usersTable.id, userId))
+    .returning();
+
+  if (!updatedUser) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  // Re-trigger sheets sync so Google Sheets has the updated custom panels
+  try {
+    const rows = await db
+      .select()
+      .from(generatorsTable)
+      .where(eq(generatorsTable.userId, userId))
+      .orderBy(generatorsTable.tDate, generatorsTable.generatorId);
+    
+    if (updatedUser.sheetLink) {
+      const spreadsheetId = extractSpreadsheetId(updatedUser.sheetLink);
+      await syncSheetFromDb(rows, spreadsheetId, updatedUser.customPanels);
+    }
+  } catch (err) {
+    // Fail silently
+  }
+
+  if ((req.session as any).isDemoUser) {
+    const demoUserId = (req.session as any).demoUserId;
+    const [demoUser] = await db.select().from(demoUsersTable).where(eq(demoUsersTable.id, demoUserId));
+    res.json({
+      id: updatedUser.id,
+      username: demoUser.username,
+      email: updatedUser.email,
+      sheetLink: updatedUser.sheetLink,
+      customPanels: updatedUser.customPanels,
+      isDemoUser: true,
+      permissions: demoUser.permissions,
+    });
+  } else {
+    res.json({
+      id: updatedUser.id,
+      username: updatedUser.username,
+      email: updatedUser.email,
+      sheetLink: updatedUser.sheetLink,
+      customPanels: updatedUser.customPanels,
+      isDemoUser: false,
+    });
+  }
 });
 
 export default router;

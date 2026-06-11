@@ -1,29 +1,15 @@
 import { google } from "googleapis";
 import { logger } from "./logger";
 
-const SHEET_NAME = "Sheet1";
+const SHEET_NAME = "All Genset";
 const DELIVERY_SHEET_NAME = "Delivery Records";
 const HEADERS = ["Date", "Generator ID", "Status", "Rating", "Hours", "Remarks"];
 const DELIVERY_HEADERS = ["Date", "Generator ID", "Status", "Rating", "Hours", "Remarks", "Delivery Status", "Delivered To"];
 
-export const PANEL_SHEETS = [
-  { id: "C7", title: "C7 - ECW", prefixes: ["ECW"] },
-  { id: "C9", title: "C9 - LX9", prefixes: ["LX9"] },
-  { id: "C13", title: "C13 - DH40", prefixes: ["DH40"] },
-  { id: "C15", title: "C15 - LXJ/2S300", prefixes: ["LXJ", "2S300"] },
-  { id: "C18", title: "C18 - LXK", prefixes: ["LXK"] },
-  // { id: "C20", title: "C20 - ABC",         prefixes: ["ABC"] },
-] as const;
+export const PANEL_SHEETS: readonly { id: string; title: string; prefixes: readonly string[] }[] = [];
 
 /** Maps a Generator ID prefix to its C Panel ID, or "Other" if unrecognised. */
 export function getGeneratorPanel(generatorId: string): string {
-  const id = (generatorId || "").toUpperCase().trim();
-  if (id.startsWith("ECW")) return "C7";
-  if (id.startsWith("LX9")) return "C9";
-  if (id.startsWith("DH40")) return "C13";
-  if (id.startsWith("LXJ") || id.startsWith("2S300")) return "C15";
-  if (id.startsWith("LXK")) return "C18";
-  // if (id.startsWith("ABC"))  return "C20";
   return "Other";
 }
 
@@ -95,15 +81,21 @@ function toDeliveryValues(rows: SheetRow[]): string[][] {
 /** In-memory cache of verified spreadsheetIds so we only check/create missing sub-sheets once per spreadsheet. */
 const sheetsReady = new Set<string>();
 
-async function ensureAllSheets(sheets: ReturnType<typeof google.sheets>, spreadsheetId: string): Promise<void> {
-  if (sheetsReady.has(spreadsheetId)) return;
+async function ensureAllSheets(
+  sheets: ReturnType<typeof google.sheets>,
+  spreadsheetId: string,
+  dynamicPanels: readonly { id: string; title: string; prefixes: readonly string[] | string[] }[]
+): Promise<void> {
+  const cacheKey = `${spreadsheetId}:${dynamicPanels.map((p) => p.id).join(",")}`;
+  if (sheetsReady.has(cacheKey)) return;
   const meta = await sheets.spreadsheets.get({ spreadsheetId });
   const existing = new Set<string>(
     meta.data.sheets?.map((s) => s.properties?.title ?? "") ?? []
   );
 
   const allNeeded = [
-    ...PANEL_SHEETS.map((p) => p.title),
+    SHEET_NAME,
+    ...dynamicPanels.map((p) => p.id),
     DELIVERY_SHEET_NAME,
   ];
   const toCreate = allNeeded.filter((title) => !existing.has(title));
@@ -118,7 +110,7 @@ async function ensureAllSheets(sheets: ReturnType<typeof google.sheets>, spreads
       },
     });
   }
-  sheetsReady.add(spreadsheetId);
+  sheetsReady.add(cacheKey);
 }
 
 async function writeSheet(
@@ -145,23 +137,48 @@ async function writeSheet(
  * Fully rebuilds Sheet1, all C Panel sub-sheets, and the Delivery Records sheet
  * from the current DB rows for a specific spreadsheet ID. Sub-sheets are created automatically on first call.
  */
-export async function syncSheetFromDb(rows: SheetRow[], spreadsheetId: string): Promise<void> {
+export async function syncSheetFromDb(rows: SheetRow[], spreadsheetId: string, customPanelsJson?: string | null): Promise<void> {
   try {
     const auth = getAuth();
     const sheets = google.sheets({ version: "v4", auth });
 
-    await ensureAllSheets(sheets, spreadsheetId);
+    // Parse custom panels if any
+    let dynamicPanels: readonly { id: string; title: string; prefixes: readonly string[] | string[] }[] = PANEL_SHEETS;
+    if (customPanelsJson) {
+      try {
+        const parsed = JSON.parse(customPanelsJson);
+        if (Array.isArray(parsed)) {
+          const merged = [...PANEL_SHEETS];
+          const seen = new Set(PANEL_SHEETS.map((p) => p.id));
+          for (const cp of parsed) {
+            if (cp && cp.id && cp.prefixes && !seen.has(cp.id)) {
+              merged.push({
+                id: cp.id,
+                title: cp.label || `${cp.id} - ${cp.prefixes[0]}`,
+                prefixes: cp.prefixes,
+              });
+              seen.add(cp.id);
+            }
+          }
+          dynamicPanels = merged;
+        }
+      } catch (e) {
+        logger.error({ e }, "Failed to parse customPanels JSON");
+      }
+    }
+
+    await ensureAllSheets(sheets, spreadsheetId, dynamicPanels);
 
     // Main sheet — all records
     await writeSheet(sheets, spreadsheetId, SHEET_NAME, toValues(rows));
 
     // C Panel sub-sheets — filtered by Generator ID prefix
-    for (const panel of PANEL_SHEETS) {
+    for (const panel of dynamicPanels) {
       const panelRows = rows.filter((r) => {
         const id = (r.generatorId || "").toUpperCase().trim();
         return panel.prefixes.some((prefix) => id.startsWith(prefix.toUpperCase()));
       });
-      await writeSheet(sheets, spreadsheetId, panel.title, toValues(panelRows));
+      await writeSheet(sheets, spreadsheetId, panel.id, toValues(panelRows));
     }
 
     // Delivery Records sheet — only previous delivery rows
@@ -169,7 +186,11 @@ export async function syncSheetFromDb(rows: SheetRow[], spreadsheetId: string): 
       (r) => r.deliveryStatus === "previous"
     );
     await writeSheet(sheets, spreadsheetId, DELIVERY_SHEET_NAME, toDeliveryValues(deliveryRows));
-  } catch (err) {
-    logger.error({ err }, "Failed to sync sheet from DB");
+  } catch (err: any) {
+    logger.error({ 
+      message: err?.message, 
+      status: err?.status, 
+      details: err?.response?.data 
+    }, "Failed to sync sheet from DB");
   }
 }
