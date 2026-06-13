@@ -40,7 +40,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string }> = {
   "Ready": { bg: "#f0fdf4", text: "#15803d", dot: "#22c55e" },
-  "Used Ready": { bg: "#fefce8", text: "#a86405ff", dot: "#f3c334ff" },
+  "Used Ready": { bg: "#FFF8DC", text: "#F4BB44", dot: "#FDDA0D" },
   "Under Repair": { bg: "#fffbeb", text: "#d97706", dot: "#f59e0b" },
   "Under Readiness": { bg: "#eff6ff", text: "#1d4ed8", dot: "#3b82f6" },
   "Other": { bg: "#f8fafc", text: "#64748b", dot: "#94a3b8" },
@@ -180,7 +180,7 @@ export default function Dashboard() {
               }
               return;
             }
-          } catch (e) {}
+          } catch (e) { }
         }
       }
     }
@@ -223,7 +223,7 @@ export default function Dashboard() {
     isOpen: false,
     title: "",
     description: "",
-    onConfirm: () => {},
+    onConfirm: () => { },
   });
 
   const { data: stats } = useGetGeneratorStats({ query: { queryKey: getGetGeneratorStatsQueryKey() } });
@@ -385,9 +385,9 @@ export default function Dashboard() {
   const handleAddSubModelSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const id = newModelNo.trim().toUpperCase();
-    const prefix = newModelPrefix.trim().toUpperCase();
+    const prefixInput = newModelPrefix.trim().toUpperCase();
 
-    if (!id || !prefix) return;
+    if (!id || !prefixInput) return;
 
     // Check if model number already exists
     if (panels.some((p) => p.id === id)) {
@@ -395,10 +395,13 @@ export default function Dashboard() {
       return;
     }
 
+    const prefixes = prefixInput.split(/[\s,;]+/).filter(Boolean);
+    if (prefixes.length === 0) return;
+
     const newPanel: CPanelConfig = {
       id,
-      label: `${id} - ${prefix}`,
-      prefixes: [prefix],
+      label: `${id} - ${prefixes.join(", ")}`,
+      prefixes: prefixes,
       isCustom: true,
     };
 
@@ -433,7 +436,7 @@ export default function Dashboard() {
     e.stopPropagation();
     setEditingPanel(panel);
     setEditModelNo(panel.id);
-    setEditModelPrefix(panel.prefixes[0] ?? "");
+    setEditModelPrefix(panel.prefixes.join(" "));
     setIsEditSubModelOpen(true);
   };
 
@@ -441,8 +444,8 @@ export default function Dashboard() {
     e.preventDefault();
     if (!editingPanel) return;
     const newId = editModelNo.trim().toUpperCase();
-    const newPrefix = editModelPrefix.trim().toUpperCase();
-    if (!newId || !newPrefix) return;
+    const newPrefixInput = editModelPrefix.trim().toUpperCase();
+    if (!newId || !newPrefixInput) return;
 
     // If ID changed, check for duplicates
     if (newId !== editingPanel.id && panels.some((p) => p.id === newId)) {
@@ -450,9 +453,12 @@ export default function Dashboard() {
       return;
     }
 
+    const prefixes = newPrefixInput.split(/[\s,;]+/).filter(Boolean);
+    if (prefixes.length === 0) return;
+
     const updated = panels.map((p) =>
       p.id === editingPanel.id
-        ? { ...p, id: newId, label: `${newId} - ${newPrefix}`, prefixes: [newPrefix] }
+        ? { ...p, id: newId, label: `${newId} - ${prefixes.join(", ")}`, prefixes }
         : p
     );
     setPanels(updated);
@@ -838,11 +844,10 @@ export default function Dashboard() {
                           </p>
                         </button>
                         {/* Edit + Delete icons - visible on hover or when selected */}
-                        <div className={`absolute top-2.5 right-2.5 flex items-center gap-0.5 transition-opacity duration-200 ${
-                          selectedCPanel === panel.id
+                        <div className={`absolute top-2.5 right-2.5 flex items-center gap-0.5 transition-opacity duration-200 ${selectedCPanel === panel.id
                             ? "opacity-100 pointer-events-auto"
                             : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
-                        }`}>
+                          }`}>
                           {!isReadOnly && (
                             <>
                               <button
@@ -1386,7 +1391,7 @@ export default function Dashboard() {
               className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden border border-gray-100 z-10"
             >
               <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                <h3 className="font-bold text-lg text-gray-900">Mark for Delivery</h3>
+                <h3 className="font-bold text-lg text-gray-900">To Delivery</h3>
                 <button
                   onClick={() => setDeliveryModalRecord(null)}
                   className="text-gray-400 hover:text-gray-500 rounded-lg p-1 hover:bg-gray-100 transition-colors"
@@ -1542,13 +1547,13 @@ export default function Dashboard() {
                     <label className="text-sm font-medium text-gray-700 block mb-1">Genset ID Prefix (Starting Characters)</label>
                     <Input
                       required
-                      placeholder="e.g. EC8, LX8"
+                      placeholder="e.g. ABC XYZ or EC8, LX8"
                       value={newModelPrefix}
                       onChange={(e) => setNewModelPrefix(e.target.value)}
                       className="h-10 border-gray-200 bg-gray-50 focus-visible:ring-[#7c3aed]"
                     />
                     <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
-                      Make sure that whatever the Genset ID is, its starting digits or letters (e.g. the first 4 characters like <strong>EC8-</strong> or <strong>LX8-</strong>) match this prefix.
+                      Make sure that whatever the Genset ID is, its starting digits or letters match one of these prefixes. You can enter multiple prefixes separated by space or comma.
                     </p>
                   </div>
                 </div>
@@ -1620,13 +1625,13 @@ export default function Dashboard() {
                     <label className="text-sm font-medium text-gray-700 block mb-1">Genset ID Prefix (Starting Characters)</label>
                     <input
                       required
-                      placeholder="e.g. EC8, LX8"
+                      placeholder="e.g. ABC XYZ or EC8, LX8"
                       value={editModelPrefix}
                       onChange={(e) => setEditModelPrefix(e.target.value)}
                       className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] focus:border-transparent"
                     />
                     <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
-                      Make sure that whatever the Genset ID is, its starting digits or letters match this prefix.
+                      Make sure that whatever the Genset ID is, its starting digits or letters match one of these prefixes. You can enter multiple prefixes separated by space or comma.
                     </p>
                   </div>
                 </div>
