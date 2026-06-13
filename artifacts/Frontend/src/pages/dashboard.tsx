@@ -39,11 +39,11 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string }> = {
-  "Ready": { bg: "#f0fdf4", text: "#15803d", dot: "#22c55e" },
-  "Used Ready": { bg: "#FFF8DC", text: "#F4BB44", dot: "#FDDA0D" },
-  "Under Repair": { bg: "#fffbeb", text: "#d97706", dot: "#f59e0b" },
-  "Under Readiness": { bg: "#eff6ff", text: "#1d4ed8", dot: "#3b82f6" },
-  "Other": { bg: "#f8fafc", text: "#64748b", dot: "#94a3b8" },
+  "Ready": { bg: "#ffffffff", text: "#228B22", dot: "	#228B22" },
+  "Used Ready": { bg: "#ffffffff", text: "#ebc41aff", dot: "#ebc41aff" },
+  "Under Repair": { bg: "#ffffffff", text: "#FF0000", dot: "#FF0000" },
+  "Under Readiness": { bg: "  #ffffffff", text: "#174bd8ff", dot: "#174bd8ff" },
+  "Other": { bg: "#ffffffff", text: "#64748b", dot: "#64748b" },
 };
 
 const STATUSES = ["Ready", "Used Ready", "Under Repair", "Under Readiness", "Other"];
@@ -845,8 +845,8 @@ export default function Dashboard() {
                         </button>
                         {/* Edit + Delete icons - visible on hover or when selected */}
                         <div className={`absolute top-2.5 right-2.5 flex items-center gap-0.5 transition-opacity duration-200 ${selectedCPanel === panel.id
-                            ? "opacity-100 pointer-events-auto"
-                            : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
+                          ? "opacity-100 pointer-events-auto"
+                          : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
                           }`}>
                           {!isReadOnly && (
                             <>
