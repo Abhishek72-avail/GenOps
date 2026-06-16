@@ -13,7 +13,8 @@ import type { GeneratorRecord } from "@workspace/api-client-react";
 import {
   Zap, LogOut, Plus, Search, Edit2, Trash2,
   TrendingUp, Database, X, ChevronDown, Truck,
-  ExternalLink, RefreshCw, Lock, Eye, EyeOff
+  ExternalLink, RefreshCw, Lock, Eye, EyeOff,
+  Download, Printer
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +27,8 @@ import * as z from "zod";
 import { motion, AnimatePresence } from "framer-motion";
 import { ProfileModal } from "@/components/profile-modal";
 import { useToast } from "@/hooks/use-toast";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const formSchema = z.object({
   tDate: z.string().min(1, "Date is required"),
@@ -40,13 +43,13 @@ type FormValues = z.infer<typeof formSchema>;
 
 const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string }> = {
   "Ready": { bg: "#ffffffff", text: "#228B22", dot: "	#228B22" },
-  "Used Ready": { bg: "#ffffffff", text: "#ebc41aff", dot: "#ebc41aff" },
+  "Used Ready": { bg: "#ffffffff", text: "#FBC02D", dot: "#FBC02D" },
   "Under Repair": { bg: "#ffffffff", text: "#FF0000", dot: "#FF0000" },
-  "Under Readiness": { bg: "  #ffffffff", text: "#174bd8ff", dot: "#174bd8ff" },
-  "Other": { bg: "#ffffffff", text: "#64748b", dot: "#64748b" },
+  "Under Readiness": { bg: "#ffffffff", text: "#174bd8ff", dot: "#174bd8ff" },
+  "On-Site": { bg: "#ffffffff", text: "#BA68C8", dot: "#BA68C8" },
 };
 
-const STATUSES = ["Ready", "Used Ready", "Under Repair", "Under Readiness", "Other"];
+const STATUSES = ["Ready", "Used Ready", "Under Repair", "Under Readiness", "On-Site"];
 
 interface CPanelConfig {
   id: string;
@@ -71,7 +74,7 @@ function getGeneratorPanel(generatorId: string, panels: CPanelConfig[]): string 
 
 
 function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG["Other"];
+  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG["On-Site"];
   return (
     <span
       className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold"
@@ -153,6 +156,16 @@ export default function Dashboard() {
   const [showCPanel, setShowCPanel] = useState(false);
   const [selectedCPanel, setSelectedCPanel] = useState<string | null>(null);
 
+  // Download & Print state variables
+  const [selectedRecordIds, setSelectedRecordIds] = useState<Set<number>>(new Set());
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+  const [downloadFilterScope, setDownloadFilterScope] = useState<"filtered" | "selected" | "custom">("filtered");
+  const [downloadFilterDateType, setDownloadFilterDateType] = useState<"all" | "today" | "range">("all");
+  const [downloadStartDate, setDownloadStartDate] = useState("");
+  const [downloadEndDate, setDownloadEndDate] = useState("");
+  const [downloadFilterModel, setDownloadFilterModel] = useState("all");
+  const [downloadFilterStatus, setDownloadFilterStatus] = useState("all");
+
   // Dynamic panels/models state
   const [panels, setPanels] = useState<CPanelConfig[]>(DEFAULT_CPANELS);
 
@@ -203,7 +216,7 @@ export default function Dashboard() {
   const [deliveryModalRecord, setDeliveryModalRecord] = useState<GeneratorRecord | null>(null);
   const [receiverName, setReceiverName] = useState("");
   const [returnModalRecord, setReturnModalRecord] = useState<GeneratorRecord | null>(null);
-  const [returnStatus, setReturnStatus] = useState("Other");
+  const [returnStatus, setReturnStatus] = useState("");
 
   // Sheet access states
   const [showSheetPasswordModal, setShowSheetPasswordModal] = useState(false);
@@ -339,12 +352,16 @@ export default function Dashboard() {
 
   const submitDelivery = () => {
     if (!deliveryModalRecord || !receiverName.trim()) return;
+    const statusUpdate = (deliveryModalRecord.status === "Ready" || deliveryModalRecord.status === "Used Ready")
+      ? { status: "On-Site" }
+      : {};
     updateMutation.mutate(
       {
         id: deliveryModalRecord.id,
         data: {
           deliveryStatus: "current",
           deliveryTo: receiverName.trim(),
+          ...statusUpdate,
         },
       },
       {
@@ -359,7 +376,7 @@ export default function Dashboard() {
 
   const openReturnModal = (record: GeneratorRecord) => {
     setReturnModalRecord(record);
-    setReturnStatus("Other");
+    setReturnStatus("");
   };
 
   const submitReturn = () => {
@@ -647,6 +664,312 @@ export default function Dashboard() {
     }
   };
 
+  // Filter logic for export/print
+  const getExportData = () => {
+    // 1. If scope is 'selected', return selected records
+    if (downloadFilterScope === "selected") {
+      if (!allGenerators) return [];
+      return allGenerators.filter(r => selectedRecordIds.has(r.id));
+    }
+
+    // 2. If scope is 'filtered', return generators currently visible in the table
+    if (downloadFilterScope === "filtered") {
+      return generators;
+    }
+
+    // 3. If scope is 'custom', apply custom filters configured in the modal
+    if (!allGenerators) return [];
+    return allGenerators.filter((r) => {
+      // Date filter
+      if (downloadFilterDateType === "today") {
+        const todayStr = new Date().toISOString().split("T")[0];
+        if (r.tDate !== todayStr) return false;
+      } else if (downloadFilterDateType === "range") {
+        if (downloadStartDate && r.tDate < downloadStartDate) return false;
+        if (downloadEndDate && r.tDate > downloadEndDate) return false;
+      }
+
+      // Model/Panel filter
+      if (downloadFilterModel !== "all") {
+        const panel = getGeneratorPanel(r.generatorId, panels);
+        if (panel !== downloadFilterModel) return false;
+      }
+
+      // Status filter
+      if (downloadFilterStatus !== "all") {
+        if (r.status !== downloadFilterStatus) return false;
+      }
+
+      return true;
+    });
+  };
+
+  const handleDownloadPDF = () => {
+    const records = getExportData();
+    if (records.length === 0) {
+      toast({
+        title: "No data found",
+        description: "There are no records matching the selected filters.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4"
+    });
+
+    // Add GenOps title and styling
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.setTextColor(31, 31, 46); // #1f1f2e
+    doc.text("GenOps", 10, 15);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(107, 114, 128); // #6b7280
+    doc.text("Generator Management & Operations System Report", 10, 20);
+
+    doc.setFontSize(9);
+    doc.setTextColor(75, 85, 99); // #4b5563
+    const reportDate = `Report Date: ${new Date().toLocaleString()}`;
+    const recordCount = `Record Count: ${records.length}`;
+    doc.text(reportDate, 200, 15, { align: "right" });
+    doc.text(recordCount, 200, 20, { align: "right" });
+
+    // Draw a divider line
+    doc.setDrawColor(255, 108, 0); // #ff6c00
+    doc.setLineWidth(0.5);
+    doc.line(10, 23, 200, 23);
+
+    // Columns
+    const headers = [
+      "Date",
+      "GENSET ID",
+      "Model",
+      "Status",
+      "Rating",
+      "Hours",
+      "Remarks",
+      "Delivered To"
+    ];
+
+    const rows = records.map(r => [
+      formatDate(r.tDate),
+      r.generatorId,
+      getGeneratorPanel(r.generatorId, panels) !== "Other" ? getGeneratorPanel(r.generatorId, panels) : "—",
+      r.status,
+      r.rating || "—",
+      r.hours != null ? `${r.hours}h` : "—",
+      r.remarks || "—",
+      r.deliveryTo || "—"
+    ]);
+
+    autoTable(doc, {
+      startY: 27,
+      head: [headers],
+      body: rows,
+      theme: "plain",
+      headStyles: {
+        fillColor: [31, 31, 46], // #1f1f2e
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+        fontSize: 8.5,
+        halign: "left",
+        cellPadding: { top: 2, right: 3, bottom: 2, left: 3 },
+      },
+      bodyStyles: {
+        fontSize: 8,
+        textColor: [55, 65, 81], // #374151
+        valign: "middle",
+        fillColor: [255, 255, 255], // White background only
+        cellPadding: { top: 1.5, right: 3, bottom: 1.5, left: 3 },
+      },
+      alternateRowStyles: {
+        fillColor: [255, 255, 255], // Override: no grey, pure white
+      },
+      columnStyles: {
+        0: { cellWidth: 22 }, // Date
+        1: { cellWidth: 25, fontStyle: "bold" }, // GENSET ID
+        2: { cellWidth: 22 }, // Model
+        3: { cellWidth: 25 }, // Status
+        4: { cellWidth: 18 }, // Rating
+        5: { cellWidth: 15 }, // Hours
+        6: { cellWidth: 38 }, // Remarks
+        7: { cellWidth: 25 }  // Delivered To
+      },
+      styles: {
+        overflow: "linebreak",
+        lineColor: [229, 231, 235], // #e5e7eb border
+        lineWidth: 0.1,
+      },
+      margin: { top: 10, right: 10, bottom: 15, left: 10 },
+      didDrawPage: (data) => {
+        // Footer (Page X of Y)
+        const str = `Page ${data.pageNumber}`;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(156, 163, 175); // #9ca3af
+        doc.text(str, 200, 287, { align: "right" });
+      }
+    });
+
+    doc.save(`generator_records_${new Date().toISOString().split("T")[0]}.pdf`);
+
+    toast({
+      title: "Success",
+      description: `Successfully downloaded ${records.length} records as PDF.`
+    });
+
+    setIsDownloadModalOpen(false);
+  };
+
+  const handlePrint = () => {
+    const records = getExportData();
+    if (records.length === 0) {
+      toast({
+        title: "No data found",
+        description: "There are no records matching the selected filters.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      toast({
+        title: "Popup Blocked",
+        description: "Please allow popups to print report.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const title = `Generator Records Report - ${new Date().toLocaleDateString()}`;
+    const rowsHtml = records.map(r => `
+      <tr>
+        <td>${formatDate(r.tDate)}</td>
+        <td><strong>${r.generatorId}</strong></td>
+        <td>${getGeneratorPanel(r.generatorId, panels) !== "Other" ? getGeneratorPanel(r.generatorId, panels) : "—"}</td>
+        <td>${r.status}</td>
+        <td>${r.rating || "—"}</td>
+        <td>${r.hours != null ? `${r.hours}h` : "—"}</td>
+        <td>${r.remarks || "—"}</td>
+        <td>${r.deliveryTo || "—"}</td>
+      </tr>
+    `).join("");
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>\${title}</title>
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+              color: #111827;
+              padding: 20px 18px;
+              margin: 0;
+              line-height: 1.3;
+              background: #fff;
+            }
+            .header {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              border-bottom: 2px solid #ff6c00;
+              padding-bottom: 10px;
+              margin-bottom: 12px;
+            }
+            .logo-title {
+              font-size: 22px;
+              font-weight: 800;
+              color: #1f1f2e;
+            }
+            .subtitle {
+              font-size: 12px;
+              color: #6b7280;
+              margin-top: 2px;
+            }
+            .meta {
+              font-size: 11px;
+              color: #4b5563;
+              text-align: right;
+              line-height: 1.4;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 11px;
+              margin-top: 8px;
+              border: 1px solid #e5e7eb;
+            }
+            th {
+              background-color: #1f1f2e;
+              color: #ffffff;
+              font-weight: 700;
+              text-transform: uppercase;
+              font-size: 9px;
+              letter-spacing: 0.05em;
+              border: 1px solid #374151;
+              padding: 5px 7px;
+              text-align: left;
+            }
+            td {
+              padding: 4px 7px;
+              border: 1px solid #e5e7eb;
+              color: #374151;
+              background-color: #ffffff;
+              vertical-align: middle;
+            }
+            @media print {
+              body { padding: 0; background: #fff; }
+              @page { margin: 1cm; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <div class="logo-title">GenOps</div>
+              <div class="subtitle">Generator Management & Operations System Report</div>
+            </div>
+            <div class="meta">
+              <div><strong>Report Date:</strong> \${new Date().toLocaleString()}</div>
+              <div><strong>Record Count:</strong> \${records.length}</div>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 12%;">Date</th>
+                <th style="width: 15%;">GENSET ID</th>
+                <th style="width: 10%;">Model</th>
+                <th style="width: 15%;">Status</th>
+                <th style="width: 10%;">Rating</th>
+                <th style="width: 8%;">Hours</th>
+                <th>Remarks</th>
+                <th style="width: 14%;">Delivered To</th>
+              </tr>
+            </thead>
+            <tbody>
+              \${rowsHtml}
+            </tbody>
+          </table>
+          <script>
+            window.onload = function() {
+              window.print();
+              window.close();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    setIsDownloadModalOpen(false);
+  };
+
   if (isLoadingUser || !user) return null;
 
   const isPending = createMutation.isPending || updateMutation.isPending;
@@ -712,21 +1035,33 @@ export default function Dashboard() {
             <h1 className="text-2xl font-bold" style={{ color: "#111827" }}>Generator Records</h1>
             <p className="text-sm mt-1" style={{ color: "#6b7280" }}>All entries are synced to your Google Sheet automatically.</p>
           </div>
-          {(user as any)?.sheetLink && (
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {/* Refresh button */}
-              <button
-                id="button-refresh-data"
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                title="Refresh all data"
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-                <span className="hidden sm:inline">Refresh</span>
-              </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Refresh button */}
+            <button
+              id="button-refresh-data"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              title="Refresh all data"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
 
-              {/* Open Sheet button (password-protected) */}
+            {/* Download Data button */}
+            <button
+              id="button-download-data"
+              onClick={() => setIsDownloadModalOpen(true)}
+              title="Download or Print Generator Data"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 transition-all shadow-sm active:scale-95 hover:scale-105"
+            >
+              <Download className="w-3.5 h-3.5 text-gray-600" />
+              <span className="hidden sm:inline">Download Data</span>
+              <span className="inline sm:hidden">Download</span>
+            </button>
+
+            {(user as any)?.sheetLink && (
+              /* Open Sheet button (password-protected) */
               <button
                 id="button-open-sheet"
                 onClick={openSheetPasswordModal}
@@ -737,8 +1072,8 @@ export default function Dashboard() {
                 <Lock className="w-3.5 h-3.5" />
                 <span>Open Sheet</span>
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Stat cards */}
@@ -973,7 +1308,7 @@ export default function Dashboard() {
                   <SelectItem value="Used Ready">Used Ready</SelectItem>
                   <SelectItem value="Under Repair">Under Repair</SelectItem>
                   <SelectItem value="Under Readiness">Under Readiness</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
+                  <SelectItem value="On-Site">On-Site</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -1030,6 +1365,22 @@ export default function Dashboard() {
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 bg-[#f9fafb] shadow-[0_1px_0_0_rgba(229,231,235,1)]">
                 <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                  <th className="px-5 py-3 text-left w-10">
+                    <input
+                      type="checkbox"
+                      checked={generators.length > 0 && generators.every(r => selectedRecordIds.has(r.id))}
+                      onChange={(e) => {
+                        const newIds = new Set(selectedRecordIds);
+                        if (e.target.checked) {
+                          generators.forEach(r => newIds.add(r.id));
+                        } else {
+                          generators.forEach(r => newIds.delete(r.id));
+                        }
+                        setSelectedRecordIds(newIds);
+                      }}
+                      className="rounded border-gray-300 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                    />
+                  </th>
                   {(viewMode === "delivery"
                     ? ["Date", "GENSET ID", "Model", "Status", "Rating", "Hours", "Remarks", "Delivered To", "R", ""]
                     : viewMode === "previous"
@@ -1043,7 +1394,7 @@ export default function Dashboard() {
               <tbody>
                 {isLoadingGenerators ? (
                   <tr>
-                    <td colSpan={viewMode === "delivery" ? 10 : 9} className="px-5 py-12 text-center text-sm" style={{ color: "#9ca3af" }}>
+                    <td colSpan={viewMode === "delivery" ? 11 : 10} className="px-5 py-12 text-center text-sm" style={{ color: "#9ca3af" }}>
                       Loading records...
                     </td>
                   </tr>
@@ -1057,6 +1408,22 @@ export default function Dashboard() {
                         className="hover:bg-orange-50/40 transition-colors"
                         data-testid={`row-generator-${record.id}`}
                       >
+                        <td className="px-5 py-3.5 w-10">
+                          <input
+                            type="checkbox"
+                            checked={selectedRecordIds.has(record.id)}
+                            onChange={(e) => {
+                              const newIds = new Set(selectedRecordIds);
+                              if (e.target.checked) {
+                                newIds.add(record.id);
+                              } else {
+                                newIds.delete(record.id);
+                              }
+                              setSelectedRecordIds(newIds);
+                            }}
+                            className="rounded border-gray-300 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                          />
+                        </td>
                         <td className="px-5 py-3.5 font-medium" style={{ color: "#374151" }}>{formatDate(record.tDate)}</td>
                         <td className="px-5 py-3.5">
                           <span className="font-semibold" style={{ color: "#111827" }}>{record.generatorId}</span>
@@ -1107,7 +1474,7 @@ export default function Dashboard() {
                             ) : (
                               (() => {
                                 const isDeliverable = (record.status === "Ready" || record.status === "Used Ready") && !isReadOnly;
-                                const cfg = STATUS_CONFIG[record.status] ?? STATUS_CONFIG["Other"];
+                                const cfg = STATUS_CONFIG[record.status] ?? STATUS_CONFIG["On-Site"];
                                 return (
                                   <button
                                     onClick={() => openDeliveryModal(record)}
@@ -1157,7 +1524,7 @@ export default function Dashboard() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={viewMode === "delivery" ? 10 : 9} className="px-5 py-16 text-center">
+                    <td colSpan={viewMode === "delivery" ? 11 : 10} className="px-5 py-16 text-center">
                       <div className="flex flex-col items-center gap-3">
                         <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "#fff7ed" }}>
                           <Database className="w-6 h-6" style={{ color: "#ff6c00" }} />
@@ -1273,7 +1640,7 @@ export default function Dashboard() {
                                 <SelectItem value="Used Ready">Used Ready</SelectItem>
                                 <SelectItem value="Under Repair">Under Repair</SelectItem>
                                 <SelectItem value="Under Readiness">Under Readiness</SelectItem>
-                                <SelectItem value="Other">Other</SelectItem>
+                                <SelectItem value="On-Site">On-Site</SelectItem>
                               </SelectContent>
                             </Select>
                             <FormMessage />
@@ -1473,7 +1840,7 @@ export default function Dashboard() {
                       <SelectItem value="Used Ready">Used Ready</SelectItem>
                       <SelectItem value="Under Repair">Under Repair</SelectItem>
                       <SelectItem value="Under Readiness">Under Readiness</SelectItem>
-                      <SelectItem value="Other">Other</SelectItem>
+                      <SelectItem value="On-Site">On-Site</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1490,7 +1857,7 @@ export default function Dashboard() {
                 <Button
                   type="button"
                   onClick={submitReturn}
-                  disabled={updateMutation.isPending}
+                  disabled={updateMutation.isPending || !returnStatus}
                   className="flex-1 h-10 text-sm font-semibold text-white"
                   style={{ background: "#ff6c00" }}
                 >
@@ -1836,6 +2203,217 @@ export default function Dashboard() {
                       Open Sheet
                     </>
                   )}
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Download & Print Modal */}
+      <AnimatePresence>
+        {isDownloadModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setIsDownloadModalOpen(false)}
+            />
+
+            {/* Modal Card */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 8 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-100 z-10 flex flex-col max-h-[90vh]"
+            >
+              {/* Header */}
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-lg text-gray-900 flex items-center gap-2">
+                    <Download className="w-5 h-5 text-orange-500" />
+                    Download & Print Data
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Export your generator records or prepare them for printing</p>
+                </div>
+                <button
+                  onClick={() => setIsDownloadModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-500 rounded-lg p-1 hover:bg-gray-100 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                {/* 1. Filter Scope selection */}
+                <div>
+                  <label className="text-sm font-semibold text-gray-700 block mb-2">Select Data Scope</label>
+                  <div className="grid grid-cols-3 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setDownloadFilterScope("filtered")}
+                      className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${downloadFilterScope === "filtered"
+                          ? "border-orange-500 bg-orange-50/50 text-orange-900 shadow-sm"
+                          : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                        }`}
+                    >
+                      <span className="text-xs font-bold">Filtered Table</span>
+                      <span className="text-[10px] text-gray-400">({generators.length} records)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={selectedRecordIds.size === 0}
+                      onClick={() => setDownloadFilterScope("selected")}
+                      className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed ${downloadFilterScope === "selected"
+                          ? "border-orange-500 bg-orange-50/50 text-orange-900 shadow-sm"
+                          : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                        }`}
+                    >
+                      <span className="text-xs font-bold">Selected Rows</span>
+                      <span className="text-[10px] text-gray-400">({selectedRecordIds.size} records)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDownloadFilterScope("custom")}
+                      className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${downloadFilterScope === "custom"
+                          ? "border-orange-500 bg-orange-50/50 text-orange-900 shadow-sm"
+                          : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                        }`}
+                    >
+                      <span className="text-xs font-bold">Custom Filters</span>
+                      <span className="text-[10px] text-gray-400 font-medium">Specify below</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Custom filters area */}
+                {downloadFilterScope === "custom" && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="space-y-4 pt-2 border-t border-gray-100"
+                  >
+                    {/* Date filter type */}
+                    <div>
+                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">1. Date Filter</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {["all", "today", "range"].map((type) => (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => setDownloadFilterDateType(type as any)}
+                            className={`py-1.5 px-3 rounded-lg border text-xs font-semibold capitalize transition-all ${downloadFilterDateType === type
+                                ? "border-orange-500 bg-orange-50/30 text-orange-700"
+                                : "border-gray-200 hover:bg-gray-50 text-gray-600"
+                              }`}
+                          >
+                            {type === "all" ? "All Dates" : type === "today" ? "Today Only" : "Custom Range"}
+                          </button>
+                        ))}
+                      </div>
+
+                      {downloadFilterDateType === "range" && (
+                        <div className="grid grid-cols-2 gap-3 mt-3">
+                          <div>
+                            <span className="text-[11px] text-gray-500 font-medium block mb-1">Start Date</span>
+                            <Input
+                              type="date"
+                              value={downloadStartDate}
+                              onChange={(e) => setDownloadStartDate(e.target.value)}
+                              className="h-9 text-xs bg-gray-50 border-gray-200 font-sans"
+                            />
+                          </div>
+                          <div>
+                            <span className="text-[11px] text-gray-500 font-medium block mb-1">End Date</span>
+                            <Input
+                              type="date"
+                              value={downloadEndDate}
+                              onChange={(e) => setDownloadEndDate(e.target.value)}
+                              className="h-9 text-xs bg-gray-50 border-gray-200 font-sans"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Model filter */}
+                    <div>
+                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1.5">2. Model / Panel Filter</label>
+                      <Select value={downloadFilterModel} onValueChange={setDownloadFilterModel}>
+                        <SelectTrigger className="h-9 text-xs bg-gray-50 border-gray-200">
+                          <SelectValue placeholder="All Models" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Models</SelectItem>
+                          <SelectItem value="Other">Other (Unassigned)</SelectItem>
+                          {panels.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Status filter */}
+                    <div>
+                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1.5">3. Status Filter</label>
+                      <Select value={downloadFilterStatus} onValueChange={setDownloadFilterStatus}>
+                        <SelectTrigger className="h-9 text-xs bg-gray-50 border-gray-200">
+                          <SelectValue placeholder="All Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Statuses</SelectItem>
+                          {STATUSES.map((status) => (
+                            <SelectItem key={status} value={status}>{status}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Info summary */}
+                <div className="bg-gray-50 rounded-xl p-4 flex justify-between items-center text-xs border border-gray-100">
+                  <span className="text-gray-500 font-medium">Records that will be exported:</span>
+                  <span className="font-extrabold text-sm text-gray-900 bg-white border px-3 py-1 rounded-lg">
+                    {getExportData().length}
+                  </span>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-6 bg-gray-50 border-t border-gray-100 flex gap-3">
+                <Button
+                  variant="outline"
+                  type="button"
+                  onClick={() => setIsDownloadModalOpen(false)}
+                  className="flex-1 h-11 text-sm font-medium"
+                >
+                  Cancel
+                </Button>
+
+                <Button
+                  type="button"
+                  onClick={handlePrint}
+                  className="flex-1 h-11 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <Printer className="w-4 h-4" />
+                  Print Report
+                </Button>
+
+                <Button
+                  type="button"
+                  onClick={handleDownloadPDF}
+                  className="flex-1 h-11 text-sm font-semibold text-white flex items-center justify-center gap-1.5 shadow-sm"
+                  style={{ background: "#ff6c00" }}
+                >
+                  <Download className="w-4 h-4" />
+                  Download PDF
                 </Button>
               </div>
             </motion.div>
