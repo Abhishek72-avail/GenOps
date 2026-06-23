@@ -182,7 +182,7 @@ export default function Dashboard() {
           // fallback
         }
       } else {
-        const saved = localStorage.getItem("custom_cpanels");
+        const saved = localStorage.getItem(`custom_cpanels_${user.id}`);
         if (saved) {
           try {
             const parsed = JSON.parse(saved);
@@ -424,7 +424,9 @@ export default function Dashboard() {
 
     const updated = [...panels, newPanel];
     setPanels(updated);
-    localStorage.setItem("custom_cpanels", JSON.stringify(updated));
+    if (user) {
+      localStorage.setItem(`custom_cpanels_${user.id}`, JSON.stringify(updated));
+    }
 
     if (!isReadOnly) {
       updateMeMutation.mutate(
@@ -479,7 +481,9 @@ export default function Dashboard() {
         : p
     );
     setPanels(updated);
-    localStorage.setItem("custom_cpanels", JSON.stringify(updated));
+    if (user) {
+      localStorage.setItem(`custom_cpanels_${user.id}`, JSON.stringify(updated));
+    }
     if (selectedCPanel === editingPanel.id) setSelectedCPanel(newId);
 
     if (!isReadOnly) {
@@ -514,7 +518,9 @@ export default function Dashboard() {
       onConfirm: () => {
         const updated = panels.filter((p) => p.id !== panelId);
         setPanels(updated);
-        localStorage.setItem("custom_cpanels", JSON.stringify(updated));
+        if (user) {
+          localStorage.setItem(`custom_cpanels_${user.id}`, JSON.stringify(updated));
+        }
         if (selectedCPanel === panelId) {
           setSelectedCPanel(null);
         }
@@ -864,7 +870,7 @@ export default function Dashboard() {
     printWindow.document.write(`
       <html>
         <head>
-          <title>\${title}</title>
+          <title>${title}</title>
           <style>
             body {
               font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -936,8 +942,8 @@ export default function Dashboard() {
               <div class="subtitle">Generator Management & Operations System Report</div>
             </div>
             <div class="meta">
-              <div><strong>Report Date:</strong> \${new Date().toLocaleString()}</div>
-              <div><strong>Record Count:</strong> \${records.length}</div>
+              <div><strong>Report Date:</strong> ${new Date().toLocaleString()}</div>
+              <div><strong>Record Count:</strong> ${records.length}</div>
             </div>
           </div>
           <table>
@@ -954,7 +960,7 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              \${rowsHtml}
+              ${rowsHtml}
             </tbody>
           </table>
           <script>
