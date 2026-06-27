@@ -29,6 +29,7 @@ import { ProfileModal } from "@/components/profile-modal";
 import { useToast } from "@/hooks/use-toast";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 const formSchema = z.object({
   tDate: z.string().min(1, "Date is required"),
@@ -135,6 +136,78 @@ function formatDate(dateStr: string): string {
   return dateStr;
 }
 
+function RemarksCell({ record, panel }: { record: GeneratorRecord; panel: string }) {
+  const [open, setOpen] = useState(false);
+  const [isClicked, setIsClicked] = useState(false);
+
+  if (!record.remarks) return <span>-</span>;
+
+  const handleToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const nextClicked = !isClicked;
+    setIsClicked(nextClicked);
+    setOpen(nextClicked);
+  };
+
+  return (
+    <Tooltip open={open} onOpenChange={(val) => {
+      if (!val) {
+        setOpen(false);
+        setIsClicked(false);
+      }
+    }}>
+      <TooltipTrigger asChild>
+        <span
+          onClick={handleToggle}
+          className="cursor-pointer hover:text-orange-500 transition-colors block truncate underline decoration-dotted decoration-gray-300 underline-offset-2"
+        >
+          {record.remarks}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent
+        side="top"
+        align="start"
+        onPointerDownOutside={(e) => {
+          setOpen(false);
+          setIsClicked(false);
+        }}
+        className="bg-slate-900 border border-slate-800 text-slate-100 p-4 rounded-xl shadow-xl w-80 text-xs font-normal"
+      >
+        <div className="space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <span className="font-bold text-orange-400 tracking-wide text-[10px] uppercase">Genset Details</span>
+            <span className="text-[10px] text-slate-400 font-medium">{formatDate(record.tDate)}</span>
+          </div>
+          <div className="grid grid-cols-[85px_1fr] gap-x-2 gap-y-2 text-[11px] leading-relaxed">
+            <span className="text-slate-400 font-medium">GENSET ID:</span>
+            <span className="font-semibold text-slate-100">{record.generatorId}</span>
+
+            <span className="text-slate-400 font-medium">Model:</span>
+            <span className="text-slate-200">{panel !== "Other" ? panel : "-"}</span>
+
+            <span className="text-slate-400 font-medium">Status:</span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: STATUS_CONFIG[record.status]?.dot ?? "#94a3b8" }} />
+              <span style={{ color: STATUS_CONFIG[record.status]?.text ?? "#fff" }} className="font-bold">{record.status}</span>
+            </span>
+
+            <span className="text-slate-400 font-medium">Rating:</span>
+            <span className="text-slate-200">{record.rating || "-"}</span>
+
+            <span className="text-slate-400 font-medium">Hours:</span>
+            <span className="text-slate-200">{record.hours != null ? `${record.hours}h` : "-"}</span>
+          </div>
+          <div className="border-t border-slate-800 pt-2.5">
+            <span className="text-slate-400 font-medium block mb-1 text-[10px] uppercase tracking-wider">Remarks</span>
+            <p className="text-slate-200 whitespace-pre-wrap break-words leading-relaxed max-h-36 overflow-y-auto pr-1">
+              {record.remarks}
+            </p>
+          </div>
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
@@ -247,29 +320,36 @@ export default function Dashboard() {
     { query: { queryKey: getListGeneratorsQueryKey() } }
   );
 
-  // Client-side filtered list for the table
+  // Client-side filtered list for the table (sorted by date: recent first, old at bottom)
   const generators = useMemo(() => {
     if (!allGenerators) return [];
-    return allGenerators.filter((r) => {
-      if (viewMode === "main") {
-        if (r.deliveryStatus === "current") return false;
-      } else if (viewMode === "delivery") {
-        if (r.deliveryStatus !== "current") return false;
-      } else if (viewMode === "previous") {
-        if (r.deliveryStatus !== "previous") return false;
-      }
-      if (statusFilter !== "all" && r.status !== statusFilter) return false;
-      if (selectedCPanel && getGeneratorPanel(r.generatorId, panels) !== selectedCPanel) return false;
-      if (search) {
-        const s = search.toLowerCase();
-        return (
-          r.generatorId.toLowerCase().includes(s) ||
-          r.tDate.includes(s) ||
-          (r.remarks ?? "").toLowerCase().includes(s)
-        );
-      }
-      return true;
-    });
+    return allGenerators
+      .filter((r) => {
+        if (viewMode === "main") {
+          if (r.deliveryStatus === "current") return false;
+        } else if (viewMode === "delivery") {
+          if (r.deliveryStatus !== "current") return false;
+        } else if (viewMode === "previous") {
+          if (r.deliveryStatus !== "previous") return false;
+        }
+        if (statusFilter !== "all" && r.status !== statusFilter) return false;
+        if (selectedCPanel && getGeneratorPanel(r.generatorId, panels) !== selectedCPanel) return false;
+        if (search) {
+          const s = search.toLowerCase();
+          return (
+            r.generatorId.toLowerCase().includes(s) ||
+            r.tDate.includes(s) ||
+            (r.remarks ?? "").toLowerCase().includes(s)
+          );
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        // Sort by date descending: recent dates at top, older dates at bottom
+        if (a.tDate > b.tDate) return -1;
+        if (a.tDate < b.tDate) return 1;
+        return 0;
+      });
   }, [allGenerators, statusFilter, selectedCPanel, search, viewMode, panels]);
 
   // Per C-Panel stats computed client-side
@@ -1451,7 +1531,9 @@ export default function Dashboard() {
                         </td>
                         <td className="px-5 py-3.5" style={{ color: "#6b7280" }}>{record.rating || "-"}</td>
                         <td className="px-5 py-3.5 font-medium" style={{ color: "#374151" }}>{record.hours != null ? `${record.hours}h` : "-"}</td>
-                        <td className="px-5 py-3.5 max-w-xs truncate" style={{ color: "#6b7280" }}>{record.remarks || "-"}</td>
+                        <td className="px-5 py-3.5 max-w-xs truncate" style={{ color: "#6b7280" }}>
+                          <RemarksCell record={record} panel={panel} />
+                        </td>
                         {(viewMode === "delivery" || viewMode === "previous") && (
                           <td className="px-5 py-3.5 font-medium" style={{ color: "#374151" }}>
                             {record.deliveryTo || "-"}
