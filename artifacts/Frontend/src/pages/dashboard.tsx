@@ -26,6 +26,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { motion, AnimatePresence } from "framer-motion";
 import { ProfileModal } from "@/components/profile-modal";
+import { AiAssistantWidget } from "@/components/ai-assistant-widget";
 import { useToast } from "@/hooks/use-toast";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -48,9 +49,10 @@ const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string }> =
   "Under Repair": { bg: "#ffffffff", text: "#FF0000", dot: "#FF0000" },
   "Under Readiness": { bg: "#ffffffff", text: "#174bd8ff", dot: "#174bd8ff" },
   "On-Site": { bg: "#ffffffff", text: "#BA68C8", dot: "#BA68C8" },
+  "Other": { bg: "#ffffffff", text: "#64748b", dot: "#64748b" },
 };
 
-const STATUSES = ["Ready", "Used Ready", "Under Repair", "Under Readiness", "On-Site"];
+const STATUSES = ["Ready", "Used Ready", "Under Repair", "Under Readiness", "On-Site", "Other"];
 
 interface CPanelConfig {
   id: string;
@@ -136,6 +138,51 @@ function formatDate(dateStr: string): string {
   return dateStr;
 }
 
+interface FormattedRemarks {
+  text: string;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  color: string;
+}
+
+function parseRemarks(remarksStr: string | null | undefined): FormattedRemarks {
+  if (!remarksStr) return { text: "", bold: false, italic: false, underline: false, color: "" };
+  try {
+    if (remarksStr.startsWith("{") && remarksStr.endsWith("}")) {
+      const parsed = JSON.parse(remarksStr);
+      if (typeof parsed === "object" && parsed !== null && "text" in parsed) {
+        return {
+          text: parsed.text || "",
+          bold: !!parsed.bold,
+          italic: !!parsed.italic,
+          underline: !!parsed.underline,
+          color: parsed.color || "",
+        };
+      }
+    }
+  } catch (e) { }
+  return { text: remarksStr, bold: false, italic: false, underline: false, color: "" };
+}
+
+function stringifyRemarks(text: string, bold: boolean, italic: boolean, underline: boolean, color: string): string {
+  if (!bold && !italic && !underline && !color) {
+    return text;
+  }
+  return JSON.stringify({ text, bold, italic, underline, color });
+}
+
+function getColorCode(color: string, isDarkBg = false): string | undefined {
+  switch (color) {
+    case "red": return isDarkBg ? "#f87171" : "#dc2626";
+    case "yellow": return isDarkBg ? "#fbbf24" : "#b45309";
+    case "green": return isDarkBg ? "#4ade80" : "#16a34a";
+    case "blue": return isDarkBg ? "#60a5fa" : "#2563eb";
+    case "pink": return isDarkBg ? "#f472b6" : "#db2777";
+    default: return undefined;
+  }
+}
+
 function RemarksCell({ record, panel }: { record: GeneratorRecord; panel: string }) {
   const [open, setOpen] = useState(false);
   const [isClicked, setIsClicked] = useState(false);
@@ -149,6 +196,8 @@ function RemarksCell({ record, panel }: { record: GeneratorRecord; panel: string
     setOpen(nextClicked);
   };
 
+  const parsed = parseRemarks(record.remarks);
+
   return (
     <Tooltip open={open} onOpenChange={(val) => {
       if (!val) {
@@ -160,8 +209,14 @@ function RemarksCell({ record, panel }: { record: GeneratorRecord; panel: string
         <span
           onClick={handleToggle}
           className="cursor-pointer hover:text-orange-500 transition-colors block truncate underline decoration-dotted decoration-gray-300 underline-offset-2"
+          style={{
+            fontWeight: parsed.bold ? "bold" : "normal",
+            fontStyle: parsed.italic ? "italic" : "normal",
+            textDecoration: parsed.underline ? "underline" : "none",
+            color: parsed.color ? getColorCode(parsed.color) : undefined,
+          }}
         >
-          {record.remarks}
+          {parsed.text}
         </span>
       </TooltipTrigger>
       <TooltipContent
@@ -171,39 +226,19 @@ function RemarksCell({ record, panel }: { record: GeneratorRecord; panel: string
           setOpen(false);
           setIsClicked(false);
         }}
-        className="bg-slate-900 border border-slate-800 text-slate-100 p-4 rounded-xl shadow-xl w-80 text-xs font-normal"
+        className="bg-slate-900 border border-slate-800 text-slate-100 px-4 py-3 rounded-xl shadow-xl max-w-xs text-xs font-normal"
       >
-        <div className="space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-            <span className="font-bold text-orange-400 tracking-wide text-[10px] uppercase">Genset Details</span>
-            <span className="text-[10px] text-slate-400 font-medium">{formatDate(record.tDate)}</span>
-          </div>
-          <div className="grid grid-cols-[85px_1fr] gap-x-2 gap-y-2 text-[11px] leading-relaxed">
-            <span className="text-slate-400 font-medium">GENSET ID:</span>
-            <span className="font-semibold text-slate-100">{record.generatorId}</span>
-
-            <span className="text-slate-400 font-medium">Model:</span>
-            <span className="text-slate-200">{panel !== "Other" ? panel : "-"}</span>
-
-            <span className="text-slate-400 font-medium">Status:</span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: STATUS_CONFIG[record.status]?.dot ?? "#94a3b8" }} />
-              <span style={{ color: STATUS_CONFIG[record.status]?.text ?? "#fff" }} className="font-bold">{record.status}</span>
-            </span>
-
-            <span className="text-slate-400 font-medium">Rating:</span>
-            <span className="text-slate-200">{record.rating || "-"}</span>
-
-            <span className="text-slate-400 font-medium">Hours:</span>
-            <span className="text-slate-200">{record.hours != null ? `${record.hours}h` : "-"}</span>
-          </div>
-          <div className="border-t border-slate-800 pt-2.5">
-            <span className="text-slate-400 font-medium block mb-1 text-[10px] uppercase tracking-wider">Remarks</span>
-            <p className="text-slate-200 whitespace-pre-wrap break-words leading-relaxed max-h-36 overflow-y-auto pr-1">
-              {record.remarks}
-            </p>
-          </div>
-        </div>
+        <p
+          className="whitespace-pre-wrap break-words leading-relaxed max-h-36 overflow-y-auto pr-1 text-[12px]"
+          style={{
+            fontWeight: parsed.bold ? "bold" : "normal",
+            fontStyle: parsed.italic ? "italic" : "normal",
+            textDecoration: parsed.underline ? "underline" : "none",
+            color: parsed.color ? getColorCode(parsed.color, true) : "#e2e8f0",
+          }}
+        >
+          {parsed.text}
+        </p>
       </TooltipContent>
     </Tooltip>
   );
@@ -288,8 +323,10 @@ export default function Dashboard() {
   const [viewMode, setViewMode] = useState<"main" | "delivery" | "previous">("main");
   const [deliveryModalRecord, setDeliveryModalRecord] = useState<GeneratorRecord | null>(null);
   const [receiverName, setReceiverName] = useState("");
+  const [deliveryDate, setDeliveryDate] = useState(TODAY);
   const [returnModalRecord, setReturnModalRecord] = useState<GeneratorRecord | null>(null);
   const [returnStatus, setReturnStatus] = useState("");
+  const [returnDate, setReturnDate] = useState(TODAY);
 
   // Sheet access states
   const [showSheetPasswordModal, setShowSheetPasswordModal] = useState(false);
@@ -336,10 +373,11 @@ export default function Dashboard() {
         if (selectedCPanel && getGeneratorPanel(r.generatorId, panels) !== selectedCPanel) return false;
         if (search) {
           const s = search.toLowerCase();
+          const parsedRemarks = parseRemarks(r.remarks).text;
           return (
             r.generatorId.toLowerCase().includes(s) ||
             r.tDate.includes(s) ||
-            (r.remarks ?? "").toLowerCase().includes(s)
+            parsedRemarks.toLowerCase().includes(s)
           );
         }
         return true;
@@ -428,6 +466,7 @@ export default function Dashboard() {
   const openDeliveryModal = (record: GeneratorRecord) => {
     setDeliveryModalRecord(record);
     setReceiverName("");
+    setDeliveryDate(TODAY);
   };
 
   const submitDelivery = () => {
@@ -441,6 +480,7 @@ export default function Dashboard() {
         data: {
           deliveryStatus: "current",
           deliveryTo: receiverName.trim(),
+          tDate: deliveryDate,
           ...statusUpdate,
         },
       },
@@ -457,6 +497,7 @@ export default function Dashboard() {
   const openReturnModal = (record: GeneratorRecord) => {
     setReturnModalRecord(record);
     setReturnStatus("");
+    setReturnDate(TODAY);
   };
 
   const submitReturn = () => {
@@ -467,6 +508,7 @@ export default function Dashboard() {
         data: {
           status: returnStatus,
           deliveryStatus: "previous",
+          tDate: returnDate,
         },
       },
       {
@@ -849,9 +891,31 @@ export default function Dashboard() {
       r.status,
       r.rating || "—",
       r.hours != null ? `${r.hours}h` : "—",
-      r.remarks || "—",
+      parseRemarks(r.remarks).text || "—",
       r.deliveryTo || "—"
     ]);
+
+    // Helper: convert hex color to RGB array for jsPDF
+    const hexToRgb = (hex: string): [number, number, number] => {
+      const h = hex.replace("#", "");
+      return [
+        parseInt(h.substring(0, 2), 16),
+        parseInt(h.substring(2, 4), 16),
+        parseInt(h.substring(4, 6), 16),
+      ];
+    };
+
+    // Helper: convert named remark color to hex
+    const remarkColorToHex = (color: string): string | null => {
+      switch (color) {
+        case "red": return "#dc2626";
+        case "yellow": return "#b45309";
+        case "green": return "#16a34a";
+        case "blue": return "#2563eb";
+        case "pink": return "#db2777";
+        default: return null;
+      }
+    };
 
     autoTable(doc, {
       startY: 27,
@@ -870,11 +934,11 @@ export default function Dashboard() {
         fontSize: 8,
         textColor: [55, 65, 81], // #374151
         valign: "middle",
-        fillColor: [255, 255, 255], // White background only
+        fillColor: [255, 255, 255],
         cellPadding: { top: 1.5, right: 3, bottom: 1.5, left: 3 },
       },
       alternateRowStyles: {
-        fillColor: [255, 255, 255], // Override: no grey, pure white
+        fillColor: [255, 255, 255],
       },
       columnStyles: {
         0: { cellWidth: 22 }, // Date
@@ -892,6 +956,34 @@ export default function Dashboard() {
         lineWidth: 0.1,
       },
       margin: { top: 10, right: 10, bottom: 15, left: 10 },
+      didParseCell: (data) => {
+        if (data.section !== "body") return;
+        const record = records[data.row.index];
+        if (!record) return;
+
+        // Column 3 = Status — apply status color
+        if (data.column.index === 3) {
+          const cfg = STATUS_CONFIG[record.status];
+          if (cfg) {
+            data.cell.styles.textColor = hexToRgb(cfg.text);
+            data.cell.styles.fontStyle = "bold";
+          }
+        }
+
+        // Column 6 = Remarks — apply remark color
+        if (data.column.index === 6) {
+          const parsed = parseRemarks(record.remarks);
+          if (parsed.color) {
+            const hex = remarkColorToHex(parsed.color);
+            if (hex) {
+              data.cell.styles.textColor = hexToRgb(hex);
+            }
+          }
+          if (parsed.bold) {
+            data.cell.styles.fontStyle = "bold";
+          }
+        }
+      },
       didDrawPage: (data) => {
         // Footer (Page X of Y)
         const str = `Page ${data.pageNumber}`;
@@ -934,18 +1026,33 @@ export default function Dashboard() {
     }
 
     const title = `Generator Records Report - ${new Date().toLocaleDateString()}`;
-    const rowsHtml = records.map(r => `
+    const rowsHtml = records.map(r => {
+      const statusCfg = STATUS_CONFIG[r.status];
+      const statusColor = statusCfg ? statusCfg.text : "#374151";
+      const parsedR = parseRemarks(r.remarks);
+      const remarkHex = parsedR.color ? ({
+        red: "#dc2626", yellow: "#b45309", green: "#16a34a",
+        blue: "#2563eb", pink: "#db2777"
+      } as Record<string, string>)[parsedR.color] || "" : "";
+      const remarkStyle = [
+        remarkHex ? `color:${remarkHex}` : "",
+        parsedR.bold ? "font-weight:bold" : "",
+        parsedR.italic ? "font-style:italic" : "",
+        parsedR.underline ? "text-decoration:underline" : "",
+      ].filter(Boolean).join(";");
+      return `
       <tr>
         <td>${formatDate(r.tDate)}</td>
         <td><strong>${r.generatorId}</strong></td>
         <td>${getGeneratorPanel(r.generatorId, panels) !== "Other" ? getGeneratorPanel(r.generatorId, panels) : "—"}</td>
-        <td>${r.status}</td>
+        <td style="color:${statusColor};font-weight:bold">${r.status}</td>
         <td>${r.rating || "—"}</td>
         <td>${r.hours != null ? `${r.hours}h` : "—"}</td>
-        <td>${r.remarks || "—"}</td>
+        <td${remarkStyle ? ` style="${remarkStyle}"` : ""}>${parsedR.text || "—"}</td>
         <td>${r.deliveryTo || "—"}</td>
       </tr>
-    `).join("");
+    `;
+    }).join("");
 
     printWindow.document.write(`
       <html>
@@ -1395,6 +1502,7 @@ export default function Dashboard() {
                   <SelectItem value="Under Repair">Under Repair</SelectItem>
                   <SelectItem value="Under Readiness">Under Readiness</SelectItem>
                   <SelectItem value="On-Site">On-Site</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -1729,6 +1837,7 @@ export default function Dashboard() {
                                 <SelectItem value="Under Repair">Under Repair</SelectItem>
                                 <SelectItem value="Under Readiness">Under Readiness</SelectItem>
                                 <SelectItem value="On-Site">On-Site</SelectItem>
+                                <SelectItem value="Other">Other</SelectItem>
                               </SelectContent>
                             </Select>
                             <FormMessage />
@@ -1782,22 +1891,95 @@ export default function Dashboard() {
                     <FormField
                       control={form.control}
                       name="remarks"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-sm font-medium" style={{ color: "#374151" }}>Remarks</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder="Any additional notes..."
-                              className="bg-gray-50 border-gray-200 resize-none"
-                              rows={3}
-                              data-testid="input-remarks"
-                              {...field}
-                              value={field.value ?? ""}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                      render={({ field }) => {
+                        const { text, bold, italic, underline, color } = parseRemarks(field.value);
+                        return (
+                          <FormItem>
+                            <FormLabel className="text-sm font-medium" style={{ color: "#374151" }}>Remarks</FormLabel>
+                            <div className="flex flex-col gap-2 border border-gray-200 rounded-lg p-2 bg-gray-50">
+                              {/* Styling toolbar */}
+                              <div className="flex items-center justify-between border-b border-gray-200 pb-2 mb-1">
+                                <div className="flex items-center gap-1.5">
+                                  {/* Bold button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => field.onChange(stringifyRemarks(text, !bold, italic, underline, color))}
+                                    className={`w-7 h-7 rounded flex items-center justify-center font-bold text-sm border transition-colors ${bold ? "bg-[#ff6c00]/10 border-[#ff6c00] text-[#ff6c00]" : "bg-white border-gray-200 text-gray-700 hover:bg-gray-100"
+                                      }`}
+                                  >
+                                    B
+                                  </button>
+                                  {/* Italic button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => field.onChange(stringifyRemarks(text, bold, !italic, underline, color))}
+                                    className={`w-7 h-7 rounded flex items-center justify-center italic text-sm border transition-colors ${italic ? "bg-[#ff6c00]/10 border-[#ff6c00] text-[#ff6c00]" : "bg-white border-gray-200 text-gray-700 hover:bg-gray-100"
+                                      }`}
+                                  >
+                                    I
+                                  </button>
+                                  {/* Underline button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => field.onChange(stringifyRemarks(text, bold, italic, !underline, color))}
+                                    className={`w-7 h-7 rounded flex items-center justify-center underline text-sm border transition-colors ${underline ? "bg-[#ff6c00]/10 border-[#ff6c00] text-[#ff6c00]" : "bg-white border-gray-200 text-gray-700 hover:bg-gray-100"
+                                      }`}
+                                  >
+                                    U
+                                  </button>
+                                </div>
+
+                                {/* Color picker */}
+                                <div className="flex items-center gap-1.5">
+                                  {[
+                                    { name: "red", bg: "bg-red-500" },
+                                    { name: "yellow", bg: "bg-amber-500" },
+                                    { name: "green", bg: "bg-green-500" },
+                                    { name: "blue", bg: "bg-blue-500" },
+                                    { name: "pink", bg: "bg-pink-500" }
+                                  ].map((c) => (
+                                    <button
+                                      key={c.name}
+                                      type="button"
+                                      onClick={() => field.onChange(stringifyRemarks(text, bold, italic, underline, color === c.name ? "" : c.name))}
+                                      className={`w-5 h-5 rounded-full border-2 transition-all ${c.bg} ${color === c.name ? "border-slate-800 scale-110 shadow-sm" : "border-transparent hover:scale-105"
+                                        }`}
+                                      title={`Color: ${c.name}`}
+                                    />
+                                  ))}
+                                  {color && (
+                                    <button
+                                      type="button"
+                                      onClick={() => field.onChange(stringifyRemarks(text, bold, italic, underline, ""))}
+                                      className="text-[10px] text-gray-400 hover:text-gray-600 underline ml-1"
+                                    >
+                                      Clear
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              <FormControl>
+                                <Textarea
+                                  placeholder="Any additional notes..."
+                                  className="bg-white border-0 focus-visible:ring-0 focus-visible:ring-offset-0 p-1 resize-none text-sm leading-relaxed focus-visible:outline-none focus:outline-none"
+                                  rows={3}
+                                  data-testid="input-remarks"
+                                  style={{
+                                    fontWeight: bold ? "bold" : "normal",
+                                    fontStyle: italic ? "italic" : "normal",
+                                    textDecoration: underline ? "underline" : "none",
+                                    color: color ? getColorCode(color) : undefined,
+                                  }}
+                                  value={text}
+                                  onChange={(e) => field.onChange(stringifyRemarks(e.target.value, bold, italic, underline, color))}
+                                />
+                              </FormControl>
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
                     />
                   </form>
                 </Form>
@@ -1865,6 +2047,16 @@ export default function Dashboard() {
                     data-testid="input-receiver-name"
                   />
                 </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Delivery Date</label>
+                  <Input
+                    type="date"
+                    value={deliveryDate}
+                    onChange={(e) => setDeliveryDate(e.target.value)}
+                    className="h-10 border-gray-200 bg-gray-50 focus-visible:ring-[#ff6c00]"
+                    data-testid="input-delivery-date"
+                  />
+                </div>
               </div>
               <div className="p-6 bg-gray-50 border-t border-gray-100 flex gap-3">
                 <Button
@@ -1929,8 +2121,19 @@ export default function Dashboard() {
                       <SelectItem value="Under Repair">Under Repair</SelectItem>
                       <SelectItem value="Under Readiness">Under Readiness</SelectItem>
                       <SelectItem value="On-Site">On-Site</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Return Date</label>
+                  <Input
+                    type="date"
+                    value={returnDate}
+                    onChange={(e) => setReturnDate(e.target.value)}
+                    className="h-10 border-gray-200 bg-gray-50 focus-visible:ring-[#ff6c00]"
+                    data-testid="input-return-date"
+                  />
                 </div>
               </div>
               <div className="p-6 bg-gray-50 border-t border-gray-100 flex gap-3">
@@ -2345,8 +2548,8 @@ export default function Dashboard() {
                       type="button"
                       onClick={() => setDownloadFilterScope("filtered")}
                       className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${downloadFilterScope === "filtered"
-                          ? "border-orange-500 bg-orange-50/50 text-orange-900 shadow-sm"
-                          : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                        ? "border-orange-500 bg-orange-50/50 text-orange-900 shadow-sm"
+                        : "border-gray-200 hover:bg-gray-50 text-gray-700"
                         }`}
                     >
                       <span className="text-xs font-bold">Filtered Table</span>
@@ -2358,8 +2561,8 @@ export default function Dashboard() {
                       disabled={selectedRecordIds.size === 0}
                       onClick={() => setDownloadFilterScope("selected")}
                       className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed ${downloadFilterScope === "selected"
-                          ? "border-orange-500 bg-orange-50/50 text-orange-900 shadow-sm"
-                          : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                        ? "border-orange-500 bg-orange-50/50 text-orange-900 shadow-sm"
+                        : "border-gray-200 hover:bg-gray-50 text-gray-700"
                         }`}
                     >
                       <span className="text-xs font-bold">Selected Rows</span>
@@ -2370,8 +2573,8 @@ export default function Dashboard() {
                       type="button"
                       onClick={() => setDownloadFilterScope("custom")}
                       className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${downloadFilterScope === "custom"
-                          ? "border-orange-500 bg-orange-50/50 text-orange-900 shadow-sm"
-                          : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                        ? "border-orange-500 bg-orange-50/50 text-orange-900 shadow-sm"
+                        : "border-gray-200 hover:bg-gray-50 text-gray-700"
                         }`}
                     >
                       <span className="text-xs font-bold">Custom Filters</span>
@@ -2397,8 +2600,8 @@ export default function Dashboard() {
                             type="button"
                             onClick={() => setDownloadFilterDateType(type as any)}
                             className={`py-1.5 px-3 rounded-lg border text-xs font-semibold capitalize transition-all ${downloadFilterDateType === type
-                                ? "border-orange-500 bg-orange-50/30 text-orange-700"
-                                : "border-gray-200 hover:bg-gray-50 text-gray-600"
+                              ? "border-orange-500 bg-orange-50/30 text-orange-700"
+                              : "border-gray-200 hover:bg-gray-50 text-gray-600"
                               }`}
                           >
                             {type === "all" ? "All Dates" : type === "today" ? "Today Only" : "Custom Range"}
@@ -2508,6 +2711,7 @@ export default function Dashboard() {
           </div>
         )}
       </AnimatePresence>
+      <AiAssistantWidget />
     </div>
   );
 }

@@ -48,6 +48,21 @@ type SheetRow = {
   deliveryTo?: string | null;
 };
 
+function cleanRemarks(remarks: string | null | undefined): string {
+  if (!remarks) return "";
+  try {
+    if (remarks.startsWith("{") && remarks.endsWith("}")) {
+      const parsed = JSON.parse(remarks);
+      if (typeof parsed === "object" && parsed !== null && "text" in parsed) {
+        return parsed.text || "";
+      }
+    }
+  } catch (e) {
+    // Ignore error, treat as raw string
+  }
+  return remarks;
+}
+
 function toValues(rows: SheetRow[]): string[][] {
   return [
     HEADERS,
@@ -57,7 +72,7 @@ function toValues(rows: SheetRow[]): string[][] {
       r.status ?? "",
       r.rating ?? "",
       r.hours != null ? String(r.hours) : "",
-      r.remarks ?? "",
+      cleanRemarks(r.remarks),
     ]),
   ];
 }
@@ -71,7 +86,7 @@ function toDeliveryValues(rows: SheetRow[]): string[][] {
       r.status ?? "",
       r.rating ?? "",
       r.hours != null ? String(r.hours) : "",
-      r.remarks ?? "",
+      cleanRemarks(r.remarks),
       r.deliveryStatus === "current" ? "Current Delivery" : "Previous Delivery",
       r.deliveryTo ?? "",
     ]),
