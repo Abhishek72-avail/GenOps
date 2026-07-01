@@ -2711,8 +2711,7 @@ export default function Dashboard() {
           </div>
         )}
       </AnimatePresence>
-      <AiAssistantWidget />
+      {/* <AiAssistantWidget /> */}
     </div>
   );
 }
-
