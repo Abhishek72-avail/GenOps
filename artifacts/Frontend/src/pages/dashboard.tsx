@@ -26,7 +26,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { motion, AnimatePresence } from "framer-motion";
 import { ProfileModal } from "@/components/profile-modal";
-import { AiAssistantWidget } from "@/components/ai-assistant-widget";
+//import { AiAssistantWidget } from "@/components/ai-assistant-widget";
 import { useToast } from "@/hooks/use-toast";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
