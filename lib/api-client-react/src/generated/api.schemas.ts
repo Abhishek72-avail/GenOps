@@ -53,6 +53,10 @@ export interface UpdateDemoUserInput {
   duration?: string;
 }
 
+export interface UpdateMeInput {
+  customPanels?: string;
+}
+
 export interface LoginInput {
   username: string;
   password: string;
@@ -124,10 +128,6 @@ export interface GeneratorStats {
   currentDelivery: number;
   previousDelivery: number;
 }
-
-export type UpdateMeBody = {
-  customPanels?: string;
-};
 
 export type ListGeneratorsParams = {
 search?: string;

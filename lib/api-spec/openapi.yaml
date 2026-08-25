@@ -118,10 +118,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                customPanels:
-                  type: string
+              $ref: "#/components/schemas/UpdateMeInput"
       responses:
         "200":
           description: Profile updated

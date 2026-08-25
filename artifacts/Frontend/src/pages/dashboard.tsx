@@ -14,7 +14,8 @@ import {
   Zap, LogOut, Plus, Search, Edit2, Trash2,
   TrendingUp, Database, X, ChevronDown, Truck,
   ExternalLink, RefreshCw, Lock, Eye, EyeOff,
-  Download, Printer
+  Download, Printer, Home, Users, Bell,
+  Calendar, Clock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,19 +102,19 @@ function StatCard({
   const color = accent ?? "#ff6c00";
   return (
     <div
-      className={`bg-white rounded-xl border p-5 flex items-center gap-4 shadow-sm transition-all ${onClick ? "cursor-pointer hover:shadow-md" : ""}`}
+      className={`bg-white rounded-xl border p-3.5 sm:p-5 flex items-center gap-3 sm:gap-4 shadow-sm transition-all ${onClick ? "cursor-pointer hover:shadow-md active:scale-98" : ""}`}
       style={{
         borderColor: isActive ? color : "#e5e7eb",
         boxShadow: isActive ? `0 0 0 2px ${color}33` : undefined,
       }}
       onClick={onClick}
     >
-      <div className="w-11 h-11 rounded-lg flex items-center justify-center" style={{ background: `${color}18` }}>
+      <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${color}18` }}>
         <span style={{ color }}>{icon}</span>
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium uppercase tracking-wide" style={{ color: "#9ca3af" }}>{label}</p>
-        <p className="text-2xl font-bold mt-0.5" style={{ color: "#111827" }}>{value}</p>
+        <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wide truncate" style={{ color: "#9ca3af" }}>{label}</p>
+        <p className="text-xl sm:text-2xl font-bold mt-0.5" style={{ color: "#111827" }}>{value}</p>
       </div>
       {onClick && (
         <ChevronDown
@@ -262,6 +263,7 @@ export default function Dashboard() {
   const isReadOnly = !!(user as any)?.isDemoUser && (user as any)?.permissions === "view";
   const [showCPanel, setShowCPanel] = useState(false);
   const [selectedCPanel, setSelectedCPanel] = useState<string | null>(null);
+  const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
 
   // Download & Print state variables
   const [selectedRecordIds, setSelectedRecordIds] = useState<Set<number>>(new Set());
@@ -1171,20 +1173,29 @@ export default function Dashboard() {
 
       {/* Top navigation bar */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
-        <div className="max-w-screen-xl mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#ff6c00" }}>
-              <Zap className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-bold text-lg tracking-tight" style={{ color: "#1f1f2e" }}>GenOps</span>
-            <span className="hidden md:inline-block ml-2 text-xs font-medium px-2 py-0.5 rounded" style={{ background: "#fff7ed", color: "#ff6c00" }}>
+        <div className="w-full px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <img src="/genops-logo.png" alt="GenOps.Live" className="h-8 sm:h-9 w-auto object-contain rounded-[10%]" />
+            <span className="hidden sm:inline-block ml-1.5 text-xs font-medium px-2 py-0.5 rounded" style={{ background: "#fff7ed", color: "#ff6c00" }}>
               Dashboard
             </span>
           </div>
-          <div className="flex items-center gap-4">
+
+          {/* Mobile Top Search Bar matching mockup */}
+          <div className="flex md:hidden items-center flex-1 max-w-[170px] xs:max-w-[210px] relative mx-2">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Input
+              placeholder="Search..."
+              className="pl-8 h-8 text-xs bg-gray-50 border-gray-200 rounded-full w-full focus:bg-white transition-colors"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-4">
             <button
               onClick={() => setIsProfileOpen(true)}
-              className="hidden md:flex items-center gap-2 text-sm hover:opacity-85 transition-opacity cursor-pointer mr-2 border border-transparent p-1 rounded-lg hover:bg-gray-50"
+              className="hidden md:flex items-center gap-2 text-sm hover:opacity-85 transition-opacity cursor-pointer border border-transparent p-1 rounded-lg hover:bg-gray-50"
               title="Open Profile Settings"
             >
               <div className="w-7 h-7 rounded-full flex items-center justify-center font-semibold text-white text-xs bg-orange-500 shadow-sm shadow-orange-500/10">
@@ -1198,17 +1209,8 @@ export default function Dashboard() {
               )}
             </button>
             <button
-              onClick={() => setIsProfileOpen(true)}
-              className="flex md:hidden items-center justify-center w-8 h-8 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors mr-1"
-              title="Open Profile Settings"
-            >
-              <div className="w-5 h-5 rounded-full flex items-center justify-center font-bold text-white text-[10px]" style={{ background: "#ff6c00" }}>
-                {user.username[0].toUpperCase()}
-              </div>
-            </button>
-            <button
               onClick={handleLogout}
-              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-1.5 text-sm px-2.5 sm:px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
               style={{ color: "#6b7280" }}
               data-testid="button-logout"
             >
@@ -1219,25 +1221,25 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-screen-xl mx-auto w-full px-6 py-8 flex flex-col gap-6">
+      <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-8 pb-24 md:pb-8 flex flex-col gap-4 sm:gap-6">
 
         {/* Page title + action buttons */}
-        <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
           <div>
-            <h1 className="text-2xl font-bold" style={{ color: "#111827" }}>Generator Records</h1>
-            <p className="text-sm mt-1" style={{ color: "#6b7280" }}>All entries are synced to your Google Sheet automatically.</p>
+            <h1 className="text-xl sm:text-2xl font-bold" style={{ color: "#111827" }}>Generator Records</h1>
+            <p className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: "#6b7280" }}>All entries are synced to your Google Sheet automatically.</p>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar pb-1 sm:pb-0">
             {/* Refresh button */}
             <button
               id="button-refresh-data"
               onClick={handleRefresh}
               disabled={isRefreshing}
               title="Refresh all data"
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs sm:text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all shadow-sm disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">Refresh</span>
+              <span>Refresh</span>
             </button>
 
             {/* Download Data button */}
@@ -1245,11 +1247,10 @@ export default function Dashboard() {
               id="button-download-data"
               onClick={() => setIsDownloadModalOpen(true)}
               title="Download or Print Generator Data"
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 transition-all shadow-sm active:scale-95 hover:scale-105"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs sm:text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all shadow-sm active:scale-95"
             >
               <Download className="w-3.5 h-3.5 text-gray-600" />
-              <span className="hidden sm:inline">Download Data</span>
-              <span className="inline sm:hidden">Download</span>
+              <span>Download</span>
             </button>
 
             {(user as any)?.sheetLink && (
@@ -1258,11 +1259,11 @@ export default function Dashboard() {
                 id="button-open-sheet"
                 onClick={openSheetPasswordModal}
                 title="Open Google Sheet (requires password)"
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold text-white transition-all shadow-sm hover:opacity-90 active:scale-95"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold text-white transition-all shadow-sm hover:opacity-90 active:scale-95"
                 style={{ background: "#ff6c00" }}
               >
                 <Lock className="w-3.5 h-3.5" />
-                <span>Open Sheet</span>
+                <span className="whitespace-nowrap">Open Sheet</span>
               </button>
             )}
           </div>
@@ -1444,13 +1445,13 @@ export default function Dashboard() {
           )}
         </AnimatePresence>
 
-        {/* Status breakdown pills */}
+        {/* Status breakdown pills - Sliding left to right on mobile */}
         {stats && stats.byStatus.length > 0 && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1.5 pt-0.5 flex-nowrap sm:flex-wrap w-full">
             {selectedCPanel && (
               <button
                 onClick={() => { setSelectedCPanel(null); setShowCPanel(false); }}
-                className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border transition-all"
+                className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border transition-all shrink-0 shadow-xs"
                 style={{ background: "#f5f3ff", color: "#7c3aed", borderColor: "#7c3aed" }}
               >
                 <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#7c3aed" }} />
@@ -1461,7 +1462,7 @@ export default function Dashboard() {
               <button
                 key={s.status}
                 onClick={() => setStatusFilter(statusFilter === s.status ? "all" : s.status)}
-                className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border transition-all"
+                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all shrink-0 shadow-xs active:scale-95"
                 style={{
                   background: statusFilter === s.status ? (STATUS_CONFIG[s.status]?.bg ?? "#f8fafc") : "#fff",
                   color: STATUS_CONFIG[s.status]?.text ?? "#64748b",
@@ -1478,20 +1479,20 @@ export default function Dashboard() {
         {/* Table card */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           {/* Toolbar */}
-          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between px-5 py-4 border-b border-gray-100">
-            <div className="flex gap-3 flex-1 w-full sm:w-auto">
-              <div className="relative flex-1 sm:w-64">
+          <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between px-4 sm:px-5 py-3.5 sm:py-4 border-b border-gray-100">
+            <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 flex-1 w-full md:w-auto">
+              <div className="relative flex-1 w-full sm:w-64">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#9ca3af" }} />
                 <Input
                   placeholder="Search by ID, date or remarks..."
-                  className="pl-9 h-9 text-sm bg-gray-50 border-gray-200"
+                  className="pl-9 h-10 sm:h-9 text-sm bg-gray-50 border-gray-200 w-full"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   data-testid="input-search"
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40 h-9 text-sm bg-gray-50 border-gray-200" data-testid="select-status-filter">
+                <SelectTrigger className="w-full sm:w-40 h-10 sm:h-9 text-sm bg-gray-50 border-gray-200" data-testid="select-status-filter">
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1505,11 +1506,12 @@ export default function Dashboard() {
                 </SelectContent>
               </Select>
 
-              <div className="flex rounded-lg border border-gray-200 p-0.5 bg-gray-50 h-9">
+              {/* View Mode Tabs */}
+              <div className="flex rounded-lg border border-gray-200 p-0.5 bg-gray-50 h-10 sm:h-9 overflow-x-auto no-scrollbar whitespace-nowrap">
                 <button
                   type="button"
                   onClick={() => setViewMode("main")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${viewMode === "main" ? "bg-white text-gray-900 shadow-sm border border-gray-100" : "text-gray-500 hover:text-gray-900"}`}
+                  className={`flex-1 px-3 py-1 text-xs font-semibold rounded-md transition-colors ${viewMode === "main" ? "bg-white text-gray-900 shadow-sm border border-gray-100" : "text-gray-500 hover:text-gray-900"}`}
                   data-testid="button-view-main"
                 >
                   Main View
@@ -1517,7 +1519,7 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => setViewMode("delivery")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${viewMode === "delivery" ? "bg-white text-gray-900 shadow-sm border border-gray-100" : "text-gray-500 hover:text-gray-900"}`}
+                  className={`flex-1 px-3 py-1 text-xs font-semibold rounded-md transition-colors ${viewMode === "delivery" ? "bg-white text-gray-900 shadow-sm border border-gray-100" : "text-gray-500 hover:text-gray-900"}`}
                   data-testid="button-view-delivery"
                 >
                   Current Delivery
@@ -1525,36 +1527,206 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => setViewMode("previous")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${viewMode === "previous" ? "bg-white text-gray-900 shadow-sm border border-gray-100" : "text-gray-500 hover:text-gray-900"}`}
+                  className={`flex-1 px-3 py-1 text-xs font-semibold rounded-md transition-colors ${viewMode === "previous" ? "bg-white text-gray-900 shadow-sm border border-gray-100" : "text-gray-500 hover:text-gray-900"}`}
                   data-testid="button-view-previous"
                 >
                   Previous Delivery
                 </button>
               </div>
             </div>
+
             <Button
               onClick={openAdd}
               disabled={isReadOnly}
-              className="h-9 px-4 text-sm font-semibold text-white rounded-lg flex items-center gap-2 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
+              className="h-10 sm:h-9 px-4 text-sm font-semibold text-white rounded-lg flex items-center justify-center gap-2 w-full md:w-auto whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: "#ff6c00" }}
               data-testid="button-add-record"
               title={isReadOnly ? "Disabled in view-only guest session" : ""}
             >
               <Plus className="w-4 h-4" />
-              Add Record
+              <span>Add Record</span>
             </Button>
           </div>
 
           {selectedCPanel && (
-            <div className="px-5 py-2.5 border-b text-xs font-medium flex items-center gap-2" style={{ background: "#faf5ff", borderColor: "#ede9fe", color: "#7c3aed" }}>
+            <div className="px-4 sm:px-5 py-2.5 border-b text-xs font-medium flex items-center gap-2" style={{ background: "#faf5ff", borderColor: "#ede9fe", color: "#7c3aed" }}>
               <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
               Filtering by {panels.find(p => p.id === selectedCPanel)?.label}
               <button onClick={() => setSelectedCPanel(null)} className="ml-1 underline hover:no-underline">Clear</button>
             </div>
           )}
 
-          {/* Table */}
-          <div className="overflow-x-auto overflow-y-auto max-h-[60vh]">
+          {/* Mobile Card List View (< md screens) */}
+          <div className="block md:hidden space-y-3.5 p-3.5 bg-gray-100/60">
+            {isLoadingGenerators ? (
+              <div className="p-8 text-center text-sm text-gray-400 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <div className="w-6 h-6 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin mx-auto mb-2" />
+                Loading records...
+              </div>
+            ) : generators.length > 0 ? (
+              generators.map((record) => {
+                const panel = getGeneratorPanel(record.generatorId, panels);
+                const isDeliverable = (record.status === "Ready" || record.status === "Used Ready") && !isReadOnly;
+                const statusCfg = STATUS_CONFIG[record.status] ?? STATUS_CONFIG["On-Site"];
+
+                return (
+                  <div
+                    key={record.id}
+                    className="bg-white rounded-2xl border border-gray-200/90 shadow-md hover:shadow-lg transition-all overflow-hidden flex flex-col"
+                    style={{ borderLeft: `5px solid ${statusCfg.dot || '#f97316'}` }}
+                  >
+                    {/* Card Header Row */}
+                    <div className="p-3.5 pb-3 border-b border-gray-100 bg-gradient-to-r from-gray-50/80 via-white to-gray-50/30 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={selectedRecordIds.has(record.id)}
+                          onChange={(e) => {
+                            const newIds = new Set(selectedRecordIds);
+                            if (e.target.checked) newIds.add(record.id);
+                            else newIds.delete(record.id);
+                            setSelectedRecordIds(newIds);
+                          }}
+                          className="rounded border-gray-300 text-orange-600 focus:ring-orange-500 h-4.5 w-4.5 cursor-pointer flex-shrink-0"
+                        />
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-black text-base text-gray-900 tracking-tight truncate">
+                            {record.generatorId}
+                          </span>
+                          {panel !== "Other" && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-purple-100 text-purple-800 border border-purple-200/60">
+                              {panel}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <StatusBadge status={record.status} />
+                    </div>
+
+                    {/* Body Details Grid (Material UI specs layout) */}
+                    <div className="p-3.5 space-y-3">
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="p-2.5 rounded-xl bg-gray-50 border border-gray-100 flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-orange-100/80 text-orange-600 flex items-center justify-center font-bold flex-shrink-0">
+                            <Zap className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Rating / kVA</span>
+                            <span className="font-extrabold text-gray-900 text-xs truncate block">{record.rating || "—"}</span>
+                          </div>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-gray-50 border border-gray-100 flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-blue-100/80 text-blue-600 flex items-center justify-center font-bold flex-shrink-0">
+                            <Clock className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Running Hours</span>
+                            <span className="font-extrabold text-gray-900 text-xs truncate block">{record.hours != null ? `${record.hours} hrs` : "—"}</span>
+                          </div>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-gray-50 border border-gray-100 flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-emerald-100/80 text-emerald-600 flex items-center justify-center font-bold flex-shrink-0">
+                            <Calendar className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Record Date</span>
+                            <span className="font-extrabold text-gray-900 text-xs truncate block">{formatDate(record.tDate)}</span>
+                          </div>
+                        </div>
+
+                        {(viewMode === "delivery" || viewMode === "previous") && (
+                          <div className="p-2.5 rounded-xl bg-gray-50 border border-gray-100 flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-lg bg-amber-100/80 text-amber-600 flex items-center justify-center font-bold flex-shrink-0">
+                              <Truck className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Delivered To</span>
+                              <span className="font-extrabold text-gray-900 text-xs truncate block">{record.deliveryTo || "—"}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Material Remarks / Notes Cell */}
+                      {record.remarks && (
+                        <div className="p-2.5 rounded-xl bg-amber-50/40 border border-amber-100 text-xs">
+                          <span className="text-[10px] font-extrabold text-amber-700 uppercase tracking-wider block mb-1">
+                            Material Details & Remarks
+                          </span>
+                          <div className="text-gray-800 leading-relaxed font-medium">
+                            <RemarksCell record={record} panel={panel} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action Footer Buttons Bar */}
+                    <div className="p-3 bg-gray-50/90 border-t border-gray-100 flex items-center justify-between gap-2">
+                      <div className="text-[11px] font-bold text-gray-400">
+                        Record #{record.id}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {viewMode !== "previous" && (
+                          viewMode === "delivery" ? (
+                            <button
+                              onClick={() => openReturnModal(record)}
+                              disabled={isReadOnly}
+                              className="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-red-50 text-red-600 border border-red-200 flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-40"
+                            >
+                              <Truck className="w-3.5 h-3.5" /> Return
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => openDeliveryModal(record)}
+                              disabled={!isDeliverable}
+                              className="px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-40"
+                              style={{
+                                background: isDeliverable ? statusCfg.bg : "#f3f4f6",
+                                color: isDeliverable ? statusCfg.text : "#9ca3af",
+                                border: `1px solid ${isDeliverable ? statusCfg.dot : "#e5e7eb"}`,
+                              }}
+                            >
+                              <Truck className="w-3.5 h-3.5" /> Deliver
+                            </button>
+                          )
+                        )}
+
+                        <button
+                          onClick={() => openEdit(record)}
+                          disabled={isReadOnly}
+                          className="p-2 rounded-xl bg-blue-50 text-blue-600 border border-blue-200/80 shadow-sm active:scale-95 disabled:opacity-40"
+                          title="Edit Genset Details"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(record.id)}
+                          disabled={isReadOnly}
+                          className="p-2 rounded-xl bg-red-50 text-red-600 border border-red-200/80 shadow-sm active:scale-95 disabled:opacity-40"
+                          title="Delete Genset"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="px-4 py-12 text-center text-sm text-gray-500 bg-white rounded-2xl border border-gray-100">
+                <div className="flex flex-col items-center gap-2">
+                  <Database className="w-6 h-6 text-orange-500" />
+                  <p className="font-medium text-gray-700">No records found</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Table (Desktop >= md screens) */}
+          <div className="hidden md:block overflow-x-auto overflow-y-auto max-h-[60vh]">
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 bg-[#f9fafb] shadow-[0_1px_0_0_rgba(229,231,235,1)]">
                 <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
@@ -1737,7 +1909,7 @@ export default function Dashboard() {
           </div>
 
           {generators.length > 0 && (
-            <div className="px-5 py-3 border-t border-gray-100 text-xs" style={{ color: "#9ca3af" }}>
+            <div className="px-4 sm:px-5 py-3 border-t border-gray-100 text-xs" style={{ color: "#9ca3af" }}>
               Showing {generators.length} record{generators.length !== 1 ? "s" : ""}
               {selectedCPanel && ` in ${panels.find(p => p.id === selectedCPanel)?.label}`}
             </div>
@@ -1753,7 +1925,7 @@ export default function Dashboard() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-30"
+              className="fixed inset-0 z-[45]"
               style={{ background: "rgba(0,0,0,0.35)" }}
               onClick={() => setIsFormOpen(false)}
             />
@@ -1762,7 +1934,7 @@ export default function Dashboard() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="fixed right-0 top-0 h-full w-full sm:w-[460px] z-40 flex flex-col shadow-2xl"
+              className="fixed right-0 top-0 h-full w-full sm:w-[460px] z-50 flex flex-col shadow-2xl"
               style={{ background: "#fff" }}
             >
               {/* Panel header */}
@@ -1984,8 +2156,8 @@ export default function Dashboard() {
                 </Form>
               </div>
 
-              {/* Panel footer */}
-              <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+              {/* Panel footer - extra bottom padding on mobile so buttons stay above the bottom nav bar */}
+              <div className="px-6 py-4 pb-20 md:pb-4 border-t border-gray-100 flex gap-3">
                 <Button
                   type="button"
                   variant="outline"
@@ -2518,66 +2690,70 @@ export default function Dashboard() {
               initial={{ opacity: 0, scale: 0.95, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 8 }}
-              className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-100 z-10 flex flex-col max-h-[90vh]"
+              className="bg-white rounded-3xl shadow-2xl max-w-lg w-[95vw] sm:w-full overflow-hidden border border-gray-100 z-50 flex flex-col max-h-[92vh] my-auto"
             >
               {/* Header */}
-              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                <div>
-                  <h3 className="font-bold text-lg text-gray-900 flex items-center gap-2">
-                    <Download className="w-5 h-5 text-orange-500" />
-                    Download & Print Data
-                  </h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Export your generator records or prepare them for printing</p>
+              <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-orange-500/5 via-amber-500/5 to-transparent">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center font-bold flex-shrink-0 shadow-sm">
+                    <Download className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base sm:text-lg text-gray-900 leading-tight">
+                      Download & Print Data
+                    </h3>
+                    <p className="text-xs text-gray-400 mt-0.5">Export your generator records or prepare them for printing</p>
+                  </div>
                 </div>
                 <button
                   onClick={() => setIsDownloadModalOpen(false)}
-                  className="text-gray-400 hover:text-gray-500 rounded-lg p-1 hover:bg-gray-100 transition-colors"
+                  className="text-gray-400 hover:text-gray-600 rounded-xl p-1.5 hover:bg-gray-100 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               {/* Body */}
-              <div className="p-6 overflow-y-auto space-y-6 flex-1">
+              <div className="p-4 sm:p-6 overflow-y-auto space-y-5 flex-1 scrollbar-thin">
                 {/* 1. Filter Scope selection */}
                 <div>
-                  <label className="text-sm font-semibold text-gray-700 block mb-2">Select Data Scope</label>
-                  <div className="grid grid-cols-3 gap-3">
+                  <label className="text-xs sm:text-sm font-bold text-gray-700 block mb-2">Select Data Scope</label>
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
                     <button
                       type="button"
                       onClick={() => setDownloadFilterScope("filtered")}
-                      className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${downloadFilterScope === "filtered"
-                        ? "border-orange-500 bg-orange-50/50 text-orange-900 shadow-sm"
+                      className={`p-2.5 sm:p-3 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1 ${downloadFilterScope === "filtered"
+                        ? "border-orange-500 bg-orange-50/80 text-orange-950 font-bold shadow-sm ring-1 ring-orange-400/40"
                         : "border-gray-200 hover:bg-gray-50 text-gray-700"
                         }`}
                     >
-                      <span className="text-xs font-bold">Filtered Table</span>
-                      <span className="text-[10px] text-gray-400">({generators.length} records)</span>
+                      <span className="text-[11px] sm:text-xs font-bold leading-tight">Filtered Table</span>
+                      <span className="text-[10px] text-gray-500 font-semibold">({generators.length} records)</span>
                     </button>
 
                     <button
                       type="button"
                       disabled={selectedRecordIds.size === 0}
                       onClick={() => setDownloadFilterScope("selected")}
-                      className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed ${downloadFilterScope === "selected"
-                        ? "border-orange-500 bg-orange-50/50 text-orange-900 shadow-sm"
+                      className={`p-2.5 sm:p-3 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed ${downloadFilterScope === "selected"
+                        ? "border-orange-500 bg-orange-50/80 text-orange-950 font-bold shadow-sm ring-1 ring-orange-400/40"
                         : "border-gray-200 hover:bg-gray-50 text-gray-700"
                         }`}
                     >
-                      <span className="text-xs font-bold">Selected Rows</span>
-                      <span className="text-[10px] text-gray-400">({selectedRecordIds.size} records)</span>
+                      <span className="text-[11px] sm:text-xs font-bold leading-tight">Selected Rows</span>
+                      <span className="text-[10px] text-gray-500 font-semibold">({selectedRecordIds.size} records)</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setDownloadFilterScope("custom")}
-                      className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${downloadFilterScope === "custom"
-                        ? "border-orange-500 bg-orange-50/50 text-orange-900 shadow-sm"
+                      className={`p-2.5 sm:p-3 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1 ${downloadFilterScope === "custom"
+                        ? "border-orange-500 bg-orange-50/80 text-orange-950 font-bold shadow-sm ring-1 ring-orange-400/40"
                         : "border-gray-200 hover:bg-gray-50 text-gray-700"
                         }`}
                     >
-                      <span className="text-xs font-bold">Custom Filters</span>
-                      <span className="text-[10px] text-gray-400 font-medium">Specify below</span>
+                      <span className="text-[11px] sm:text-xs font-bold leading-tight">Custom Filters</span>
+                      <span className="text-[10px] text-gray-500 font-semibold">Specify below</span>
                     </button>
                   </div>
                 </div>
@@ -2598,8 +2774,8 @@ export default function Dashboard() {
                             key={type}
                             type="button"
                             onClick={() => setDownloadFilterDateType(type as any)}
-                            className={`py-1.5 px-3 rounded-lg border text-xs font-semibold capitalize transition-all ${downloadFilterDateType === type
-                              ? "border-orange-500 bg-orange-50/30 text-orange-700"
+                            className={`py-2 px-2.5 rounded-xl border text-xs font-bold capitalize transition-all ${downloadFilterDateType === type
+                              ? "border-orange-500 bg-orange-50 text-orange-800 shadow-sm"
                               : "border-gray-200 hover:bg-gray-50 text-gray-600"
                               }`}
                           >
@@ -2616,7 +2792,7 @@ export default function Dashboard() {
                               type="date"
                               value={downloadStartDate}
                               onChange={(e) => setDownloadStartDate(e.target.value)}
-                              className="h-9 text-xs bg-gray-50 border-gray-200 font-sans"
+                              className="h-10 text-xs bg-gray-50 border-gray-200 rounded-xl font-sans"
                             />
                           </div>
                           <div>
@@ -2625,7 +2801,7 @@ export default function Dashboard() {
                               type="date"
                               value={downloadEndDate}
                               onChange={(e) => setDownloadEndDate(e.target.value)}
-                              className="h-9 text-xs bg-gray-50 border-gray-200 font-sans"
+                              className="h-10 text-xs bg-gray-50 border-gray-200 rounded-xl font-sans"
                             />
                           </div>
                         </div>
@@ -2636,7 +2812,7 @@ export default function Dashboard() {
                     <div>
                       <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1.5">2. Model / Panel Filter</label>
                       <Select value={downloadFilterModel} onValueChange={setDownloadFilterModel}>
-                        <SelectTrigger className="h-9 text-xs bg-gray-50 border-gray-200">
+                        <SelectTrigger className="h-10 text-xs bg-gray-50 border-gray-200 rounded-xl">
                           <SelectValue placeholder="All Models" />
                         </SelectTrigger>
                         <SelectContent>
@@ -2653,7 +2829,7 @@ export default function Dashboard() {
                     <div>
                       <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1.5">3. Status Filter</label>
                       <Select value={downloadFilterStatus} onValueChange={setDownloadFilterStatus}>
-                        <SelectTrigger className="h-9 text-xs bg-gray-50 border-gray-200">
+                        <SelectTrigger className="h-10 text-xs bg-gray-50 border-gray-200 rounded-xl">
                           <SelectValue placeholder="All Status" />
                         </SelectTrigger>
                         <SelectContent>
@@ -2668,21 +2844,21 @@ export default function Dashboard() {
                 )}
 
                 {/* Info summary */}
-                <div className="bg-gray-50 rounded-xl p-4 flex justify-between items-center text-xs border border-gray-100">
-                  <span className="text-gray-500 font-medium">Records that will be exported:</span>
-                  <span className="font-extrabold text-sm text-gray-900 bg-white border px-3 py-1 rounded-lg">
+                <div className="bg-gray-50 rounded-2xl p-3.5 sm:p-4 flex justify-between items-center text-xs border border-gray-100">
+                  <span className="text-gray-600 font-semibold">Records that will be exported:</span>
+                  <span className="font-black text-sm text-gray-900 bg-white border border-gray-200 px-3.5 py-1 rounded-xl shadow-sm">
                     {getExportData().length}
                   </span>
                 </div>
               </div>
 
-              {/* Footer */}
-              <div className="p-6 bg-gray-50 border-t border-gray-100 flex gap-3">
+              {/* Footer Buttons (Mobile-first stacked & desktop side-by-side) */}
+              <div className="p-4 sm:p-6 bg-gray-50 border-t border-gray-100 flex flex-col-reverse sm:flex-row gap-2.5 sm:gap-3">
                 <Button
                   variant="outline"
                   type="button"
                   onClick={() => setIsDownloadModalOpen(false)}
-                  className="flex-1 h-11 text-sm font-medium"
+                  className="w-full sm:flex-1 h-11 text-xs sm:text-sm font-bold border-gray-300 text-gray-700 bg-white hover:bg-gray-100 rounded-2xl"
                 >
                   Cancel
                 </Button>
@@ -2690,7 +2866,7 @@ export default function Dashboard() {
                 <Button
                   type="button"
                   onClick={handlePrint}
-                  className="flex-1 h-11 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                  className="w-full sm:flex-1 h-11 text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 rounded-2xl shadow-md shadow-blue-500/20"
                 >
                   <Printer className="w-4 h-4" />
                   Print Report
@@ -2699,11 +2875,181 @@ export default function Dashboard() {
                 <Button
                   type="button"
                   onClick={handleDownloadPDF}
-                  className="flex-1 h-11 text-sm font-semibold text-white flex items-center justify-center gap-1.5 shadow-sm"
+                  className="w-full sm:flex-1 h-11 text-xs sm:text-sm font-bold text-white flex items-center justify-center gap-2 rounded-2xl shadow-md shadow-orange-500/25"
                   style={{ background: "#ff6c00" }}
                 >
                   <Download className="w-4 h-4" />
                   Download PDF
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* Bottom Navigation Bar for Mobile View */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200/80 px-2 py-1.5 grid grid-cols-5 items-center justify-items-center md:hidden shadow-lg">
+        {/* 1. Home Button */}
+        <button
+          type="button"
+          onClick={() => {
+            setViewMode("main");
+            setStatusFilter("all");
+            setSearch("");
+            setSelectedCPanel(null);
+            setShowCPanel(false);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          className="flex flex-col items-center gap-0.5 text-gray-700 hover:text-orange-500 transition-colors p-1 cursor-pointer w-full"
+          title="Home Dashboard"
+        >
+          <Home className="w-5 h-5 text-gray-700 hover:text-orange-500" />
+          <span className="text-[10px] font-semibold text-gray-700">Home</span>
+        </button>
+
+        {/* 2. Network / Guest Users Icon */}
+        <button
+          type="button"
+          onClick={() => setIsGuestModalOpen(true)}
+          className="flex flex-col items-center gap-0.5 text-gray-700 hover:text-orange-500 transition-colors p-1 cursor-pointer w-full"
+          title="Network Accounts"
+        >
+          <Users className="w-5 h-5 text-gray-700 hover:text-orange-500" />
+          <span className="text-[10px] font-semibold text-gray-700">Network</span>
+        </button>
+
+        {/* 3. Center Add Record Prominent Button */}
+        <button
+          type="button"
+          onClick={() => {
+            if (isReadOnly) {
+              toast({ title: "View-only Mode", description: "You are logged in as a guest. Creating records is disabled.", variant: "destructive" });
+              return;
+            }
+            openAdd();
+          }}
+          className="w-12 h-12 rounded-full text-white flex items-center justify-center shadow-lg shadow-orange-500/30 transition-transform active:scale-90 -mt-5 bg-[#ff6c00] cursor-pointer"
+          title="Add Record"
+        >
+          <Plus className="w-6 h-6 text-white" />
+        </button>
+
+        {/* 4. Notification Icon with Red Badge */}
+        <button
+          type="button"
+          onClick={() => {
+            toast({
+              title: "Notifications",
+              description: "No new notifications. System operating normally.",
+            });
+          }}
+          className="flex flex-col items-center gap-0.5 text-gray-700 hover:text-orange-500 transition-colors p-1 relative cursor-pointer w-full"
+          title="Notifications"
+        >
+          <div className="relative">
+            <Bell className="w-5 h-5 text-gray-700 hover:text-orange-500" />
+            <span className="absolute -top-1 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white font-bold text-[9px] flex items-center justify-center shadow-xs">
+              1
+            </span>
+          </div>
+          <span className="text-[10px] font-semibold text-gray-700">Alerts</span>
+        </button>
+
+        {/* 5. Profile Avatar Icon at Bottom Right */}
+        <button
+          type="button"
+          onClick={() => setIsProfileOpen(true)}
+          className="flex flex-col items-center gap-0.5 text-gray-700 hover:text-orange-500 transition-colors p-1 cursor-pointer w-full"
+          title="Profile Settings"
+        >
+          <div className="w-5.5 h-5.5 rounded-full flex items-center justify-center font-bold text-white text-[10px]" style={{ background: "#ff6c00" }}>
+            {user.username[0].toUpperCase()}
+          </div>
+          <span className="text-[10px] font-semibold text-gray-700">Profile</span>
+        </button>
+      </div>
+
+      {/* Guest / Network Accounts Modal */}
+      <AnimatePresence>
+        {isGuestModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl border border-gray-100 w-full max-w-md overflow-hidden"
+            >
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-orange-50 to-amber-50">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-orange-500 text-white flex items-center justify-center shadow-xs">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-base">Network & Guest Accounts</h3>
+                    <p className="text-xs text-gray-500">Active demo and network sessions</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsGuestModalOpen(false)}
+                  className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                <div className="bg-orange-50/70 border border-orange-100 rounded-xl p-3.5 flex items-start gap-3">
+                  <span className="w-2 h-2 rounded-full bg-orange-500 mt-1.5 shrink-0 animate-ping" />
+                  <div>
+                    <p className="text-xs font-bold text-orange-950">Current Active Session</p>
+                    <p className="text-xs text-orange-800 mt-0.5">
+                      Logged in as: <strong className="font-bold">{user.username}</strong> ({user.isDemoUser ? "Guest User" : "Primary User"})
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Demo / Network Accounts</p>
+                  <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
+                    <div className="p-3 flex items-center justify-between bg-white hover:bg-gray-50">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-500 text-white font-bold text-xs flex items-center justify-center">
+                          G
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-gray-800">guest_demo</p>
+                          <p className="text-[10px] text-gray-400">Guest Viewer Session</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 bg-green-50 text-green-600 rounded-full border border-green-100">
+                        Online
+                      </span>
+                    </div>
+
+                    <div className="p-3 flex items-center justify-between bg-white hover:bg-gray-50">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-orange-500 text-white font-bold text-xs flex items-center justify-center">
+                          {user.username[0].toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-gray-800">{user.username}</p>
+                          <p className="text-[10px] text-gray-400">Current Session</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full border border-blue-100">
+                        Active Now
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+                <Button
+                  type="button"
+                  onClick={() => setIsGuestModalOpen(false)}
+                  className="px-5 h-9 text-xs font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-lg shadow-xs"
+                >
+                  Close
                 </Button>
               </div>
             </motion.div>

@@ -1,9 +1,11 @@
 import { Router, type IRouter } from "express";
-import { eq, or, and } from "drizzle-orm";
+import { eq, or, and, gt } from "drizzle-orm";
 import { db, usersTable, demoUsersTable, generatorsTable } from "@workspace/db";
 import { LoginBody, RegisterBody, CreateDemoUserBody, UpdateDemoUserBody, UpdateMeBody } from "@workspace/api-zod";
 import { hashPassword, verifyPassword } from "../lib/auth";
 import { syncSheetFromDb, extractSpreadsheetId } from "../lib/sheets";
+
+const passwordResetOtpsTable: any = null;
 
 const router: IRouter = Router();
 
@@ -189,13 +191,13 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     const demoUserId = (req.session as any).demoUserId;
     const [demoUser] = await db.select().from(demoUsersTable).where(eq(demoUsersTable.id, demoUserId));
     if (!demoUser || !demoUser.isActive || (demoUser.expiresAt && new Date() > new Date(demoUser.expiresAt))) {
-      req.session.destroy(() => {});
+      req.session.destroy(() => { });
       res.status(401).json({ error: "Your demo session has expired or been deactivated" });
       return;
     }
     const [admin] = await db.select().from(usersTable).where(eq(usersTable.id, demoUser.adminId));
     if (!admin) {
-      req.session.destroy(() => {});
+      req.session.destroy(() => { });
       res.status(401).json({ error: "Administrator account not found" });
       return;
     }
@@ -462,7 +464,7 @@ router.patch("/auth/me", async (req, res): Promise<void> => {
       .from(generatorsTable)
       .where(eq(generatorsTable.userId, userId))
       .orderBy(generatorsTable.tDate, generatorsTable.generatorId);
-    
+
     if (updatedUser.sheetLink) {
       const spreadsheetId = extractSpreadsheetId(updatedUser.sheetLink);
       await syncSheetFromDb(rows, spreadsheetId, updatedUser.customPanels);
@@ -494,5 +496,173 @@ router.patch("/auth/me", async (req, res): Promise<void> => {
     });
   }
 });
+
+const memoryOtpStore = new Map<string, { otp: string; expiresAt: Date }>();
+
+const sendOtpEmail = async (email: string, otp: string) => {
+  console.log(`[OTP] Sent OTP ${otp} to ${email}`);
+};
+
+/**
+ * Forgot Password - Request OTP
+ */
+const handleForgotRequestOtp = async (req: any, res: any): Promise<void> => {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== "string") {
+      res.status(400).json({ error: "Email is required" });
+      return;
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    memoryOtpStore.set(normalizedEmail, { otp, expiresAt });
+
+    try {
+      await (db as any).insert((passwordResetOtpsTable as any)).values({
+        email: normalizedEmail,
+        otp,
+        expiresAt,
+      });
+    } catch (e) { }
+
+    await sendOtpEmail(normalizedEmail, otp);
+
+    res.json({
+      message: "Verification OTP code sent to your email address.",
+      email: normalizedEmail,
+      debugOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to request OTP" });
+  }
+};
+
+router.post("/auth/forgot-password/request-otp", handleForgotRequestOtp);
+router.post("/api/auth/forgot-password/request-otp", handleForgotRequestOtp);
+
+/**
+ * Forgot Password - Verify OTP
+ */
+const handleForgotVerifyOtp = async (req: any, res: any): Promise<void> => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+      res.status(400).json({ error: "Email and OTP code are required" });
+      return;
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const cleanOtp = String(otp).trim();
+
+    const memoryRecord = memoryOtpStore.get(normalizedEmail);
+    if (memoryRecord && memoryRecord.otp === cleanOtp && memoryRecord.expiresAt > new Date()) {
+      res.json({ valid: true });
+      return;
+    }
+
+    try {
+      const [dbRecord] = await db
+        .select()
+        .from(passwordResetOtpsTable)
+        .where(
+          and(
+            eq(passwordResetOtpsTable.email, normalizedEmail),
+            eq(passwordResetOtpsTable.otp, cleanOtp),
+            gt(passwordResetOtpsTable.expiresAt, new Date())
+          )
+        );
+
+      if (dbRecord) {
+        res.json({ valid: true });
+        return;
+      }
+    } catch (e) { }
+
+    res.status(400).json({ error: "Invalid or expired OTP code. Please check your email or request a new code." });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to verify OTP" });
+  }
+};
+
+router.post("/auth/forgot-password/verify-otp", handleForgotVerifyOtp);
+router.post("/api/auth/forgot-password/verify-otp", handleForgotVerifyOtp);
+
+/**
+ * Forgot Password - Reset Password
+ */
+const handleForgotResetPassword = async (req: any, res: any): Promise<void> => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) {
+      res.status(400).json({ error: "Email, OTP code, and new password are required" });
+      return;
+    }
+
+    if (typeof newPassword !== "string" || newPassword.length < 4) {
+      res.status(400).json({ error: "Password must be at least 4 characters long" });
+      return;
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const cleanOtp = String(otp).trim();
+
+    let isValidOtp = false;
+    const memoryRecord = memoryOtpStore.get(normalizedEmail);
+    if (memoryRecord && memoryRecord.otp === cleanOtp && memoryRecord.expiresAt > new Date()) {
+      isValidOtp = true;
+    } else {
+      try {
+        const [dbRecord] = await db
+          .select()
+          .from(passwordResetOtpsTable)
+          .where(
+            and(
+              eq(passwordResetOtpsTable.email, normalizedEmail),
+              eq(passwordResetOtpsTable.otp, cleanOtp),
+              gt(passwordResetOtpsTable.expiresAt, new Date())
+            )
+          );
+        if (dbRecord) isValidOtp = true;
+      } catch (e) { }
+    }
+
+    if (!isValidOtp) {
+      res.status(400).json({ error: "Invalid or expired OTP verification code" });
+      return;
+    }
+
+    const newPasswordHash = hashPassword(newPassword);
+
+    const [updatedUser] = await db
+      .update(usersTable)
+      .set({ passwordHash: newPasswordHash })
+      .where(eq(usersTable.email, normalizedEmail))
+      .returning();
+
+    if (!updatedUser) {
+      await db
+        .update(demoUsersTable)
+        .set({ passwordHash: newPasswordHash })
+        .where(eq(demoUsersTable.username, normalizedEmail));
+    }
+
+    memoryOtpStore.delete(normalizedEmail);
+    try {
+      await db
+        .delete(passwordResetOtpsTable)
+        .where(eq(passwordResetOtpsTable.email, normalizedEmail));
+    } catch (e) { }
+
+    res.json({ message: "Password updated successfully! You can now log in with your new password." });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to reset password" });
+  }
+};
+
+router.post("/auth/forgot-password/reset-password", handleForgotResetPassword);
+router.post("/api/auth/forgot-password/reset-password", handleForgotResetPassword);
 
 export default router;

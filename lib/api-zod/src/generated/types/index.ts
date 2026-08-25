@@ -21,5 +21,5 @@ export * from './loginInput';
 export * from './messageResponse';
 export * from './registerInput';
 export * from './updateDemoUserInput';
-export * from './updateMeBody';
+export * from './updateMeInput';
 export * from './user';

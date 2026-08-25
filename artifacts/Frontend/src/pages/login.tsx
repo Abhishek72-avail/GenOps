@@ -7,7 +7,7 @@ import { useLogin, useGetMe, getGetMeQueryKey } from "@workspace/api-client-reac
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Zap, User, Lock, Eye, EyeOff } from "lucide-react";
+import { User, Lock, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const loginSchema = z.object({
@@ -51,7 +51,7 @@ export default function Login() {
   if (isLoadingUser) return null;
 
   return (
-    <div className="min-h-screen flex" style={{ background: "#efebe4" }}>
+    <div className="min-h-[100dvh] flex" style={{ background: "#efebe4" }}>
       {/* Left branding panel */}
       <div className="hidden lg:flex flex-col justify-between w-100 p-12 shadow-2xl relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsla(200, 8%, 7%, 1.00) 0%, #0C5179 100%)" }}>
         {/* Decorative subtle background shapes */}
@@ -59,10 +59,7 @@ export default function Login() {
         <div className="absolute bottom-[-10%] left-[-10%] w-80 h-80 rounded-full bg-blue-500/10 blur-3xl" />
 
         <div className="flex items-center gap-3 relative z-10">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20" style={{ background: "#ff6c00" }}>
-            <Zap className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-white font-black text-2xl tracking-tight">GenOps</span>
+          <img src="/genops-logo.png" alt="GenOps.Live" className="h-16 w-auto object-contain rounded-[10%] bg-white p-1.5 shadow-lg shadow-orange-500/20" />
         </div>
 
         <div className="relative z-10 my-auto py-12">
@@ -81,21 +78,43 @@ export default function Login() {
       </div>
 
       {/* Right login form */}
-      <div className="flex-1 flex items-center justify-center p-6 md:p-12">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-200/80 p-8 md:p-10 transition-all hover:shadow-2xl">
+      <div
+        className="flex-1 flex items-center justify-center p-4 sm:p-6 md:p-12 relative overflow-hidden"
+        style={{
+          backgroundColor: "#f7f2ea",
+          backgroundImage: `
+            radial-gradient(circle at 75% 25%, rgba(255, 140, 0, 0.28) 0%, transparent 55%),
+            radial-gradient(circle at 25% 75%, rgba(12, 81, 121, 0.22) 0%, transparent 55%),
+            radial-gradient(circle at 50% 50%, rgba(255, 108, 0, 0.15) 0%, transparent 50%),
+            radial-gradient(circle, rgba(255, 108, 0, 0.3) 1.5px, transparent 1.5px),
+            radial-gradient(circle, rgba(12, 81, 121, 0.3) 1.5px, transparent 1.5px)
+          `,
+          backgroundSize: "100% 100%, 100% 100%, 100% 100%, 24px 24px, 48px 48px",
+          backgroundPosition: "0 0, 0 0, 0 0, 0 0, 12px 12px",
+        }}
+      >
+        {/* Ambient Glowing Orbs for dramatic Glassmorphism effect */}
+        <div className="absolute top-[15%] right-[10%] w-72 h-72 rounded-full bg-orange-400/30 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-[10%] left-[10%] w-80 h-80 rounded-full bg-orange-500/25 blur-3xl pointer-events-none" />
+        <div className="absolute top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-cyan-600/15 blur-3xl pointer-events-none" />
+
+        <div
+          className="w-full max-w-md bg-white/40 backdrop-blur-2xl border border-white/80 rounded-2xl shadow-2xl shadow-orange-950/10 p-6 sm:p-8 md:p-10 transition-all hover:shadow-orange-950/20 relative z-10"
+          style={{
+            backdropFilter: "blur(20px) saturate(180%)",
+            WebkitBackdropFilter: "blur(20px) saturate(180%)",
+          }}
+        >
           {/* Mobile logo */}
           <div className="flex items-center gap-3 mb-8 lg:hidden">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-md shadow-orange-500/10" style={{ background: "#ff6c00" }}>
-              <Zap className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-extrabold text-2xl tracking-tight" style={{ color: "#1f1f2e" }}>GenOps</span>
+            <img src="/genops-logo.png" alt="GenOps.Live" className="h-10 w-auto object-contain rounded-[10%]" />
           </div>
 
-          <h1 className="text-3xl font-extrabold tracking-tight mb-1.5" style={{ color: "#1f1f2e" }}>Login</h1>
-          <p className="text-sm mb-8 font-medium text-gray-505" style={{ color: "#6b7280" }}>Sign in to manage your genset assets</p>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-1.5" style={{ color: "#1f1f2e" }}>Login</h1>
+          <p className="text-sm mb-6 sm:mb-8 font-medium" style={{ color: "#6b7280" }}>Sign in to manage your genset assets</p>
 
           {loginMutation.isError && (
-            <div className="mb-6 px-4.5 py-3.5 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-2" style={{ background: "#fff1f0", color: "#cf1322", border: "1px solid #ffa39e" }}>
+            <div className="mb-6 px-4.5 py-3.5 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-2" style={{ background: "#faf6f638", color: "#cf1322", border: "1px solid #ffa39e" }}>
               <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />
               Invalid username or password
             </div>
@@ -111,12 +130,12 @@ export default function Login() {
                     <FormLabel className="text-sm font-semibold text-gray-700">Username</FormLabel>
                     <FormControl>
                       <div className="relative group">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors group-focus-within:text-orange-500">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 transition-colors group-focus-within:text-orange-500 z-10">
                           <User className="w-4.5 h-4.5" />
                         </span>
                         <Input
                           placeholder="Enter your username"
-                          className="pl-10 h-11 border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white rounded-lg transition-all focus:shadow-sm"
+                          className="pl-10 h-12 sm:h-11 border-white/60 focus:border-orange-500 focus:ring-orange-500 bg-white/50 backdrop-blur-md rounded-lg transition-all focus:bg-white/80 focus:shadow-sm text-base sm:text-sm text-gray-900 placeholder:text-gray-500"
                           data-testid="input-username"
                           {...field}
                         />
@@ -143,20 +162,20 @@ export default function Login() {
                     </div>
                     <FormControl>
                       <div className="relative group">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors group-focus-within:text-orange-500">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 transition-colors group-focus-within:text-orange-500 z-10">
                           <Lock className="w-4.5 h-4.5" />
                         </span>
                         <Input
                           type={showPassword ? "text" : "password"}
                           placeholder="Enter your password"
-                          className="pl-10 pr-10 h-11 border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white rounded-lg transition-all focus:shadow-sm"
+                          className="pl-10 pr-10 h-12 sm:h-11 border-white/60 focus:border-orange-500 focus:ring-orange-500 bg-white/50 backdrop-blur-md rounded-lg transition-all focus:bg-white/80 focus:shadow-sm text-base sm:text-sm text-gray-900 placeholder:text-gray-500"
                           data-testid="input-password"
                           {...field}
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword((prev) => !prev)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none cursor-pointer"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors focus:outline-none cursor-pointer z-10"
                         >
                           {showPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
                         </button>
@@ -168,7 +187,7 @@ export default function Login() {
               />
               <Button
                 type="submit"
-                className="w-full h-11 font-bold text-white rounded-lg transition-all shadow-md hover:shadow-lg shadow-orange-500/10 hover:shadow-orange-500/20 active:scale-98 cursor-pointer text-sm"
+                className="w-full h-12 sm:h-11 font-bold text-white rounded-lg transition-all shadow-md hover:shadow-lg shadow-orange-500/10 hover:shadow-orange-500/20 active:scale-[0.98] cursor-pointer text-base sm:text-sm"
                 style={{ background: "#ff6c00" }}
                 disabled={loginMutation.isPending}
                 data-testid="button-login"
