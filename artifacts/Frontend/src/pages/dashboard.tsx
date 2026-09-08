@@ -848,10 +848,10 @@ export default function Dashboard() {
 
     const payload = {
       ...values,
-      rating: values.rating ? values.rating.trim() : null,
-      hours: values.hours ?? null,
-      valveLashHrs: values.valveLashHrs ? values.valveLashHrs.trim() : null,
-      remarks: values.remarks ? values.remarks.trim() : null,
+      rating: values.rating?.trim() || undefined,
+      hours: values.hours !== undefined && values.hours !== null && !isNaN(Number(values.hours)) ? Number(values.hours) : undefined,
+      valveLashHrs: values.valveLashHrs?.trim() || undefined,
+      remarks: values.remarks?.trim() || undefined,
     };
     const invalidate = () => {
       queryClient.invalidateQueries({ queryKey: getListGeneratorsQueryKey() });
