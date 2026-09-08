@@ -16,7 +16,8 @@ import {
   ExternalLink, RefreshCw, Lock, Eye, EyeOff,
   Download, Printer, Home, Users, Bell,
   Calendar, Clock, Layers,
-  ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown
+  ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown,
+  Table as TableIcon, LayoutGrid, SlidersHorizontal
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -299,6 +300,41 @@ function RemarksCell({ record, panel }: { record: GeneratorRecord; panel: string
   );
 }
 
+function MobileRemarksView({ remarks }: { remarks?: string | null }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!remarks) return <span className="text-gray-400">—</span>;
+  const parsed = parseRemarks(remarks);
+  const isLong = (parsed.text || "").length > 45;
+
+  return (
+    <div>
+      <p
+        className={`leading-relaxed text-xs transition-all ${expanded ? "whitespace-pre-wrap break-words" : "line-clamp-2"}`}
+        style={{
+          fontWeight: parsed.bold ? "bold" : "normal",
+          fontStyle: parsed.italic ? "italic" : "normal",
+          textDecoration: parsed.underline ? "underline" : "none",
+          color: parsed.color ? getColorCode(parsed.color) : undefined,
+        }}
+      >
+        {parsed.text}
+      </p>
+      {isLong && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded(!expanded);
+          }}
+          className="text-[11px] font-bold text-orange-600 hover:text-orange-700 mt-1 inline-flex items-center gap-0.5 cursor-pointer"
+        >
+          {expanded ? "Show less ▲" : "Read more ▼"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -397,6 +433,7 @@ export default function Dashboard() {
   const [sortAsc, setSortAsc] = useState<boolean>(false);
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(25);
+  const [mobileView, setMobileView] = useState<"table" | "cards">("table");
 
   const handleSort = (field: "tDate" | "generatorId" | "panel" | "status" | "rating" | "hours" | "valveLashHrs") => {
     if (sortField === field) {
@@ -1899,8 +1936,42 @@ export default function Dashboard() {
             </div>
           )}
 
+          {/* Mobile View Toggle (Slideable Table vs Cards) */}
+          <div className="flex md:hidden items-center justify-between px-3.5 py-2.5 bg-gray-50 border-b border-gray-200">
+            <div className="flex items-center gap-1.5 text-gray-600 text-xs font-semibold">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-orange-500" />
+              <span>Mobile Layout:</span>
+            </div>
+            <div className="flex items-center gap-1 bg-gray-200/80 p-0.5 rounded-lg">
+              <button
+                type="button"
+                onClick={() => setMobileView("table")}
+                className={`px-3 py-1 text-xs font-bold rounded-md flex items-center gap-1.5 transition-all ${
+                  mobileView === "table"
+                    ? "bg-white text-orange-600 shadow-xs"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                <TableIcon className="w-3.5 h-3.5" />
+                <span>Table (Slide)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileView("cards")}
+                className={`px-3 py-1 text-xs font-bold rounded-md flex items-center gap-1.5 transition-all ${
+                  mobileView === "cards"
+                    ? "bg-white text-orange-600 shadow-xs"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Cards</span>
+              </button>
+            </div>
+          </div>
+
           {/* Mobile Card List View (< md screens) */}
-          <div className="block md:hidden space-y-3.5 p-3.5 bg-gray-100/60">
+          <div className={`block md:hidden space-y-3.5 p-3.5 bg-gray-100/60 ${mobileView === "cards" ? "" : "hidden"}`}>
             {isLoadingGenerators ? (
               <div className="p-8 text-center text-sm text-gray-400 bg-white rounded-2xl border border-gray-100 shadow-sm">
                 <div className="w-6 h-6 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin mx-auto mb-2" />
@@ -2012,7 +2083,7 @@ export default function Dashboard() {
                             Material Details & Remarks
                           </span>
                           <div className="text-gray-800 leading-relaxed font-medium">
-                            <RemarksCell record={record} panel={panel} />
+                            <MobileRemarksView remarks={record.remarks} />
                           </div>
                         </div>
                       )}
@@ -2090,6 +2161,8 @@ export default function Dashboard() {
                     <option value={25}>25</option>
                     <option value={50}>50</option>
                     <option value={100}>100</option>
+                    <option value={200}>200</option>
+                    <option value={300}>300</option>
                   </select>
                   <div className="flex items-center gap-1">
                     <span className="text-[11px] text-gray-500">
@@ -2123,10 +2196,17 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Table (Desktop >= md screens) - MUI DataGrid inspired UI */}
-          <div className="hidden md:block border-t border-gray-200">
-            <div className="overflow-x-auto overflow-y-auto max-h-[60vh] scrollbar-thin scrollbar-thumb-gray-300">
-              <table className="w-full text-sm border-collapse table-fixed">
+          {/* Table (Desktop >= md screens, and mobile when mobileView === "table") */}
+          <div className={`${mobileView === "table" ? "block" : "hidden md:block"} border-t border-gray-200`}>
+            {/* Mobile Touch Slide Guidance Helper */}
+            <div className="flex md:hidden items-center justify-between px-3 py-1.5 bg-orange-50/80 border-b border-orange-100 text-[11px] text-orange-800 font-medium">
+              <span className="flex items-center gap-1.5">
+                <span>👉</span>
+                <span>Slide table horizontally to view Remarks, Valve Lash & all columns</span>
+              </span>
+            </div>
+            <div className="overflow-x-auto overflow-y-auto max-h-[65vh] scrollbar-thin scrollbar-thumb-gray-300 touch-pan-x">
+              <table className="min-w-[1180px] w-full text-sm border-collapse table-fixed">
                 <thead className="sticky top-0 z-20 bg-gray-50/95 backdrop-blur-xs shadow-[0_1px_0_0_rgba(229,231,235,1)]">
                   <tr className="border-b border-gray-200 text-left">
                     {/* Checkbox (fixed 40px, sticky left) */}
@@ -2256,12 +2336,12 @@ export default function Dashboard() {
                       </div>
                     </th>
 
-                    {/* REMARKS (flex-grow column) */}
-                    <th className="min-w-[160px] px-2.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+                    {/* REMARKS (fixed width 220px) */}
+                    <th className="w-[220px] min-w-[220px] max-w-[220px] px-2.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
                       REMARKS
                     </th>
 
-                    {/* VALVE LASH HRS (width ~155px) */}
+                    {/* VALVE LASH HRS (fixed width 155px) */}
                     <th
                       onClick={() => handleSort("valveLashHrs")}
                       className="w-[155px] min-w-[155px] max-w-[155px] px-2.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-[#6B7280] cursor-pointer select-none hover:text-gray-900 transition-colors whitespace-nowrap"
@@ -2293,8 +2373,8 @@ export default function Dashboard() {
                       </th>
                     )}
 
-                    {/* ACTIONS (width ~70px, sticky right) */}
-                    <th className="w-[70px] min-w-[70px] max-w-[70px] px-2 py-2.5 text-center text-xs font-semibold uppercase tracking-wider text-[#6B7280] sticky right-0 z-30 bg-gray-50 border-l border-gray-200">
+                    {/* ACTIONS (width ~75px, sticky right) */}
+                    <th className="w-[75px] min-w-[75px] max-w-[75px] px-2 py-2.5 text-center text-xs font-semibold uppercase tracking-wider text-[#6B7280] sticky right-0 z-30 bg-gray-50 border-l border-gray-200 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
                       ACTIONS
                     </th>
                   </tr>
@@ -2369,13 +2449,13 @@ export default function Dashboard() {
                             {record.hours != null ? `${record.hours}h` : "—"}
                           </td>
 
-                          {/* REMARKS (flex-grow, single-line ellipsis) */}
-                          <td className="min-w-[160px] px-2.5 py-1 text-xs max-w-xs truncate text-gray-700">
+                          {/* REMARKS (fixed width 220px, single-line ellipsis) */}
+                          <td className="w-[220px] min-w-[220px] max-w-[220px] px-2.5 py-1 text-xs truncate text-gray-700">
                             <RemarksCell record={record} panel={panel} />
                           </td>
 
-                          {/* VALVE LASH HRS */}
-                          <td className="w-[155px] min-w-[155px] max-w-[155px] px-2.5 py-1 text-xs text-gray-700 font-semibold tabular-nums truncate">
+                          {/* VALVE LASH HRS (fixed width 155px) */}
+                          <td className="w-[155px] min-w-[155px] max-w-[155px] px-2.5 py-1 text-xs text-gray-700 font-semibold tabular-nums truncate whitespace-nowrap">
                             {record.valveLashHrs ? `${record.valveLashHrs}${/^\d+(\.\d+)?$/.test(String(record.valveLashHrs).trim()) ? 'h' : ''}` : "—"}
                           </td>
 
@@ -2421,7 +2501,7 @@ export default function Dashboard() {
                           )}
 
                           {/* ACTIONS (pencil, trash icon buttons, sticky right) */}
-                          <td className="w-[70px] min-w-[70px] max-w-[70px] px-1.5 py-1 text-center sticky right-0 z-10 bg-white group-even:bg-[#FAFAFA] group-hover:bg-[#F5F5F5] border-l border-gray-200">
+                          <td className="w-[75px] min-w-[75px] max-w-[75px] px-1.5 py-1 text-center sticky right-0 z-10 bg-white group-even:bg-[#FAFAFA] group-hover:bg-[#F5F5F5] border-l border-gray-200 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
                             <div className="flex items-center justify-center gap-1">
                               <button
                                 onClick={() => openEdit(record)}
@@ -2493,6 +2573,8 @@ export default function Dashboard() {
                     <option value={25}>25</option>
                     <option value={50}>50</option>
                     <option value={100}>100</option>
+                    <option value={200}>200</option>
+                    <option value={300}>300</option>
                   </select>
                 </div>
 
