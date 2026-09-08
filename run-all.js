@@ -33,7 +33,7 @@ if (fs.existsSync(envPath)) {
 }
 
 // Ensure defaults
-process.env.DATABASE_URL = process.env.DATABASE_URL || "postgresql://gmsuser:gmspassword@localhost:5432/generatordb";
+process.env.DATABASE_URL = process.env.DATABASE_URL || "postgresql://gmsuser:gmspassword@localhost:54320/generatordb";
 process.env.PORT = "5000"; // Backend always runs on 5000
 process.env.FRONTEND_PORT = "3000"; // Frontend always runs on 3000
 process.env.SESSION_SECRET = process.env.SESSION_SECRET || "super-secret-change-in-production";
@@ -41,17 +41,17 @@ process.env.SESSION_SECRET = process.env.SESSION_SECRET || "super-secret-change-
 // 2. Start PostgreSQL via Docker Compose
 console.log("\x1b[33m%s\x1b[0m", "\n🐳 Starting Database container (Docker)...");
 try {
-  execSync("docker compose up -d db", { stdio: "inherit", cwd: __dirname });
+  execSync("docker compose up -d db", { stdio: "inherit", cwd: __dirname, env: process.env });
   console.log("\x1b[32m%s\x1b[0m", "✔ Database container is up and running!");
 } catch (error) {
   console.log("\x1b[31m%s\x1b[0m", "⚠ Could not run docker compose. Make sure Docker Desktop is open and running.");
-  console.log("\x1b[33m%s\x1b[0m", "ℹ Will proceed in case you have a local PostgreSQL database running on port 5432...");
+  console.log("\x1b[33m%s\x1b[0m", "ℹ Will proceed in case you have a local PostgreSQL database running on port 54320...");
 }
 
 // 3. Push Database Schema
 console.log("\x1b[33m%s\x1b[0m", "\n⚙ Syncing Database Schema...");
 try {
-  execSync("pnpm --filter @workspace/db run push", { stdio: "inherit", cwd: __dirname });
+  execSync("pnpm --filter @workspace/db run push", { stdio: "inherit", cwd: __dirname, env: process.env });
   console.log("\x1b[32m%s\x1b[0m", "✔ Database schema is synced!");
 } catch (error) {
   console.log("\x1b[31m%s\x1b[0m", "⚠ Warning: Database schema sync failed. (Database might still be starting up, will continue)");
@@ -64,13 +64,13 @@ const children = [];
 
 function startProcess(name, command, args, color) {
   console.log(`${color}[Launcher] Starting ${name}... [${command} ${args.join(" ")}]\x1b[0m`);
-  
+
   const child = spawn(command, args, {
     cwd: __dirname,
     shell: true,
     env: process.env
   });
-  
+
   child.stdout.on("data", (data) => {
     const lines = data.toString().trim().split("\n");
     for (const line of lines) {
@@ -117,7 +117,7 @@ function cleanup() {
     } catch {
       try {
         child.kill("SIGTERM");
-      } catch {}
+      } catch { }
     }
   }
   setTimeout(() => process.exit(0), 1000);

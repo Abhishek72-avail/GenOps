@@ -3,8 +3,8 @@ import { logger } from "./logger";
 
 const SHEET_NAME = "All Genset";
 const DELIVERY_SHEET_NAME = "Delivery Records";
-const HEADERS = ["Date", "Generator ID", "Status", "Rating", "Hours", "Remarks"];
-const DELIVERY_HEADERS = ["Date", "Generator ID", "Status", "Rating", "Hours", "Remarks", "Delivery Status", "Delivered To"];
+const HEADERS = ["Date", "Generator ID", "Status", "Rating", "Hours", "Remarks", "Valve Lash Hrs"];
+const DELIVERY_HEADERS = ["Date", "Generator ID", "Status", "Rating", "Hours", "Remarks", "Valve Lash Hrs", "Delivery Status", "Delivered To"];
 
 export const PANEL_SHEETS: readonly { id: string; title: string; prefixes: readonly string[] }[] = [];
 
@@ -43,6 +43,7 @@ type SheetRow = {
   status: string;
   rating?: string | null;
   hours?: number | null;
+  valveLashHrs?: string | null;
   remarks?: string | null;
   deliveryStatus?: string | null;
   deliveryTo?: string | null;
@@ -73,6 +74,7 @@ function toValues(rows: SheetRow[]): string[][] {
       r.rating ?? "",
       r.hours != null ? String(r.hours) : "",
       cleanRemarks(r.remarks),
+      r.valveLashHrs ?? "",
     ]),
   ];
 }
@@ -87,6 +89,7 @@ function toDeliveryValues(rows: SheetRow[]): string[][] {
       r.rating ?? "",
       r.hours != null ? String(r.hours) : "",
       cleanRemarks(r.remarks),
+      r.valveLashHrs ?? "",
       r.deliveryStatus === "current" ? "Current Delivery" : "Previous Delivery",
       r.deliveryTo ?? "",
     ]),

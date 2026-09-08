@@ -53,3 +53,5 @@ Thumbs.db
 .env.example
 .env.backup
 .npmrc
+backup_generatordb.sql
+*.sql

@@ -565,6 +565,8 @@ components:
           type: ["string", "null"]
         hours:
           type: ["number", "null"]
+        valveLashHrs:
+          type: ["string", "null"]
         remarks:
           type: ["string", "null"]
         deliveryStatus:
@@ -596,6 +598,8 @@ components:
           type: string
         hours:
           type: number
+        valveLashHrs:
+          type: string
         remarks:
           type: string
       required:
@@ -616,6 +620,8 @@ components:
           type: string
         hours:
           type: number
+        valveLashHrs:
+          type: string
         remarks:
           type: string
         deliveryStatus:

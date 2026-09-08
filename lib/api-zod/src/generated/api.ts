@@ -169,6 +169,7 @@ export const ListGeneratorsResponseItem = zod.object({
   "status": zod.string(),
   "rating": zod.string().nullish(),
   "hours": zod.number().nullish(),
+  "valveLashHrs": zod.string().nullish(),
   "remarks": zod.string().nullish(),
   "deliveryStatus": zod.string().nullish(),
   "deliveryTo": zod.string().nullish(),
@@ -185,9 +186,10 @@ export const CreateGeneratorBody = zod.object({
   "tDate": zod.string(),
   "generatorId": zod.string(),
   "status": zod.string(),
-  "rating": zod.string().optional(),
-  "hours": zod.number().optional(),
-  "remarks": zod.string().optional()
+  "rating": zod.string().nullish(),
+  "hours": zod.number().nullish(),
+  "valveLashHrs": zod.string().nullish(),
+  "remarks": zod.string().nullish()
 })
 
 
@@ -221,6 +223,7 @@ export const GetGeneratorResponse = zod.object({
   "status": zod.string(),
   "rating": zod.string().nullish(),
   "hours": zod.number().nullish(),
+  "valveLashHrs": zod.string().nullish(),
   "remarks": zod.string().nullish(),
   "deliveryStatus": zod.string().nullish(),
   "deliveryTo": zod.string().nullish(),
@@ -240,9 +243,10 @@ export const UpdateGeneratorBody = zod.object({
   "tDate": zod.string().optional(),
   "generatorId": zod.string().optional(),
   "status": zod.string().optional(),
-  "rating": zod.string().optional(),
-  "hours": zod.number().optional(),
-  "remarks": zod.string().optional(),
+  "rating": zod.string().nullish(),
+  "hours": zod.number().nullish(),
+  "valveLashHrs": zod.string().nullish(),
+  "remarks": zod.string().nullish(),
   "deliveryStatus": zod.string().optional(),
   "deliveryTo": zod.string().nullish()
 })
@@ -254,6 +258,7 @@ export const UpdateGeneratorResponse = zod.object({
   "status": zod.string(),
   "rating": zod.string().nullish(),
   "hours": zod.number().nullish(),
+  "valveLashHrs": zod.string().nullish(),
   "remarks": zod.string().nullish(),
   "deliveryStatus": zod.string().nullish(),
   "deliveryTo": zod.string().nullish(),

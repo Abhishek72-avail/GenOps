@@ -15,7 +15,8 @@ import {
   TrendingUp, Database, X, ChevronDown, Truck,
   ExternalLink, RefreshCw, Lock, Eye, EyeOff,
   Download, Printer, Home, Users, Bell,
-  Calendar, Clock
+  Calendar, Clock, Layers,
+  ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,18 +39,19 @@ const formSchema = z.object({
   status: z.string().min(1, "Status is required"),
   rating: z.string().optional().nullable(),
   hours: z.coerce.number().optional().nullable(),
+  valveLashHrs: z.string().optional().nullable(),
   remarks: z.string().optional().nullable(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
 const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string }> = {
-  "Ready": { bg: "#ffffffff", text: "#228B22", dot: "	#228B22" },
-  "Used Ready": { bg: "#ffffffff", text: "#FBC02D", dot: "#FBC02D" },
-  "Under Repair": { bg: "#ffffffff", text: "#FF0000", dot: "#FF0000" },
-  "Under Readiness": { bg: "#ffffffff", text: "#174bd8ff", dot: "#174bd8ff" },
-  "On-Site": { bg: "#ffffffff", text: "#BA68C8", dot: "#BA68C8" },
-  "Other": { bg: "#ffffffff", text: "#64748b", dot: "#64748b" },
+  "Ready": { bg: "#ffffff", text: "#2E9E44", dot: "#2E9E44" },
+  "Used Ready": { bg: "#ffffff", text: "#F0842A", dot: "#F0842A" },
+  "Under Readiness": { bg: "#ffffff", text: "#2F6FE0", dot: "#2F6FE0" },
+  "Under Repair": { bg: "#ffffff", text: "#E23B3B", dot: "#E23B3B" },
+  "On-Site": { bg: "#ffffff", text: "#9333ea", dot: "#9333ea" },
+  "Other": { bg: "#ffffff", text: "#6B7280", dot: "#6B7280" },
 };
 
 const STATUSES = ["Ready", "Used Ready", "Under Repair", "Under Readiness", "On-Site", "Other"];
@@ -77,14 +79,14 @@ function getGeneratorPanel(generatorId: string, panels: CPanelConfig[]): string 
 
 
 function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG["On-Site"];
+  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG["Other"];
   return (
     <span
-      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold"
-      style={{ background: cfg.bg, color: cfg.text }}
+      className="inline-flex items-center gap-1.5 text-xs font-medium whitespace-nowrap"
+      style={{ color: cfg.text }}
     >
-      <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg.dot }} />
-      {status}
+      <span className="w-2 h-2 rounded-full flex-shrink-0 shadow-2xs" style={{ backgroundColor: cfg.dot }} />
+      <span>{status}</span>
     </span>
   );
 }
@@ -390,6 +392,21 @@ export default function Dashboard() {
   const [showSheetPasswordText, setShowSheetPasswordText] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Table sorting & pagination states (MUI DataGrid style)
+  const [sortField, setSortField] = useState<"tDate" | "generatorId" | "panel" | "status" | "rating" | "hours" | "valveLashHrs">("tDate");
+  const [sortAsc, setSortAsc] = useState<boolean>(false);
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(25);
+
+  const handleSort = (field: "tDate" | "generatorId" | "panel" | "status" | "rating" | "hours" | "valveLashHrs") => {
+    if (sortField === field) {
+      setSortAsc(!sortAsc);
+    } else {
+      setSortField(field);
+      setSortAsc(field === "generatorId" || field === "status");
+    }
+  };
+
   // Delete confirmation modal state
   const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
     isOpen: boolean;
@@ -411,7 +428,7 @@ export default function Dashboard() {
     { query: { queryKey: getListGeneratorsQueryKey() } }
   );
 
-  // Client-side filtered list for the table (sorted by date: recent first, old at bottom)
+  // Client-side filtered list for the table with dynamic sorting
   const generators = useMemo(() => {
     if (!allGenerators) return [];
     return allGenerators
@@ -431,18 +448,45 @@ export default function Dashboard() {
           return (
             r.generatorId.toLowerCase().includes(s) ||
             r.tDate.includes(s) ||
+            (r.valveLashHrs && r.valveLashHrs.toLowerCase().includes(s)) ||
             parsedRemarks.toLowerCase().includes(s)
           );
         }
         return true;
       })
       .sort((a, b) => {
-        // Sort by date descending: recent dates at top, older dates at bottom
-        if (a.tDate > b.tDate) return -1;
-        if (a.tDate < b.tDate) return 1;
-        return 0;
+        let comp = 0;
+        if (sortField === "tDate") {
+          comp = a.tDate.localeCompare(b.tDate);
+        } else if (sortField === "generatorId") {
+          comp = a.generatorId.localeCompare(b.generatorId, undefined, { numeric: true });
+        } else if (sortField === "panel") {
+          const pa = getGeneratorPanel(a.generatorId, panels);
+          const pb = getGeneratorPanel(b.generatorId, panels);
+          comp = pa.localeCompare(pb);
+        } else if (sortField === "status") {
+          comp = a.status.localeCompare(b.status);
+        } else if (sortField === "rating") {
+          comp = (a.rating || "").localeCompare(b.rating || "");
+        } else if (sortField === "hours") {
+          comp = (a.hours ?? 0) - (b.hours ?? 0);
+        } else if (sortField === "valveLashHrs") {
+          comp = (a.valveLashHrs || "").localeCompare(b.valveLashHrs || "", undefined, { numeric: true });
+        }
+        return sortAsc ? comp : -comp;
       });
-  }, [allGenerators, statusFilter, selectedCPanel, search, viewMode, panels]);
+  }, [allGenerators, statusFilter, selectedCPanel, search, viewMode, panels, sortField, sortAsc]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter, viewMode, selectedCPanel, pageSize]);
+
+  const totalRecords = generators.length;
+  const totalPages = Math.max(1, Math.ceil(totalRecords / pageSize));
+  const paginatedGenerators = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return generators.slice(start, start + pageSize);
+  }, [generators, page, pageSize]);
 
   // Per C-Panel stats computed client-side
   const cpanelStats = useMemo(() => {
@@ -474,7 +518,7 @@ export default function Dashboard() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { tDate: TODAY, generatorId: "", status: "Ready", rating: "", hours: 0, remarks: "" },
+    defaultValues: { tDate: TODAY, generatorId: "", status: "Ready", rating: "", hours: 0, valveLashHrs: "", remarks: "" },
   });
 
   useEffect(() => {
@@ -483,7 +527,7 @@ export default function Dashboard() {
 
   const openAdd = () => {
     setEditingRecord(null);
-    form.reset({ tDate: TODAY, generatorId: "", status: "Ready", rating: "", hours: 0, remarks: "" });
+    form.reset({ tDate: TODAY, generatorId: "", status: "Ready", rating: "", hours: 0, valveLashHrs: "", remarks: "" });
     setIsFormOpen(true);
   };
 
@@ -495,6 +539,7 @@ export default function Dashboard() {
       status: record.status,
       rating: record.rating ?? "",
       hours: record.hours ?? 0,
+      valveLashHrs: record.valveLashHrs ?? "",
       remarks: record.remarks ?? "",
     });
     setIsFormOpen(true);
@@ -803,9 +848,10 @@ export default function Dashboard() {
 
     const payload = {
       ...values,
-      rating: values.rating || undefined,
-      hours: values.hours ?? undefined,
-      remarks: values.remarks || undefined,
+      rating: values.rating ? values.rating.trim() : null,
+      hours: values.hours ?? null,
+      valveLashHrs: values.valveLashHrs ? values.valveLashHrs.trim() : null,
+      remarks: values.remarks ? values.remarks.trim() : null,
     };
     const invalidate = () => {
       queryClient.invalidateQueries({ queryKey: getListGeneratorsQueryKey() });
@@ -935,6 +981,7 @@ export default function Dashboard() {
       "Rating",
       "Hours",
       "Remarks",
+      "Valve Lash Hrs",
       "Delivered To"
     ];
 
@@ -946,6 +993,7 @@ export default function Dashboard() {
       r.rating || "—",
       r.hours != null ? `${r.hours}h` : "—",
       parseRemarks(r.remarks).text || "—",
+      r.valveLashHrs || "—",
       r.deliveryTo || "—"
     ]);
 
@@ -963,7 +1011,7 @@ export default function Dashboard() {
     const remarkColorToHex = (color: string): string | null => {
       switch (color) {
         case "red": return "#dc2626";
-        case "yellow": return "#b45309";
+        case "yellow": return "#d4b815ff";
         case "green": return "#16a34a";
         case "blue": return "#2563eb";
         case "pink": return "#db2777";
@@ -995,14 +1043,15 @@ export default function Dashboard() {
         fillColor: [255, 255, 255],
       },
       columnStyles: {
-        0: { cellWidth: 22 }, // Date
-        1: { cellWidth: 25, fontStyle: "bold" }, // GENSET ID
-        2: { cellWidth: 22 }, // Model
-        3: { cellWidth: 25 }, // Status
-        4: { cellWidth: 18 }, // Rating
-        5: { cellWidth: 15 }, // Hours
-        6: { cellWidth: 38 }, // Remarks
-        7: { cellWidth: 25 }  // Delivered To
+        0: { cellWidth: 20 }, // Date
+        1: { cellWidth: 23, fontStyle: "bold" }, // GENSET ID
+        2: { cellWidth: 18 }, // Model
+        3: { cellWidth: 22 }, // Status
+        4: { cellWidth: 16 }, // Rating
+        5: { cellWidth: 14 }, // Hours
+        6: { cellWidth: 32 }, // Remarks
+        7: { cellWidth: 20 }, // Valve Lash Hrs
+        8: { cellWidth: 23 }  // Delivered To
       },
       styles: {
         overflow: "linebreak",
@@ -1103,6 +1152,7 @@ export default function Dashboard() {
         <td>${r.rating || "—"}</td>
         <td>${r.hours != null ? `${r.hours}h` : "—"}</td>
         <td${remarkStyle ? ` style="${remarkStyle}"` : ""}>${parsedR.text || "—"}</td>
+        <td>${r.valveLashHrs || "—"}</td>
         <td>${r.deliveryTo || "—"}</td>
       </tr>
     `;
@@ -1190,14 +1240,15 @@ export default function Dashboard() {
           <table>
             <thead>
               <tr>
-                <th style="width: 12%;">Date</th>
-                <th style="width: 15%;">GENSET ID</th>
-                <th style="width: 10%;">Model</th>
-                <th style="width: 15%;">Status</th>
-                <th style="width: 10%;">Rating</th>
+                <th style="width: 11%;">Date</th>
+                <th style="width: 13%;">GENSET ID</th>
+                <th style="width: 9%;">Model</th>
+                <th style="width: 13%;">Status</th>
+                <th style="width: 9%;">Rating</th>
                 <th style="width: 8%;">Hours</th>
                 <th>Remarks</th>
-                <th style="width: 14%;">Delivered To</th>
+                <th style="width: 12%;">Valve Lash Hrs</th>
+                <th style="width: 12%;">Delivered To</th>
               </tr>
             </thead>
             <tbody>
@@ -1227,11 +1278,21 @@ export default function Dashboard() {
       {/* Top navigation bar */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
         <div className="w-full px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+          {/* Left side: Logo & Title */}
           <div className="flex items-center gap-2.5 sm:gap-3">
             <img src="/genops-logo.png" alt="GenOps.Live" className="h-8 sm:h-9 w-auto object-contain rounded-[10%]" />
             <span className="hidden sm:inline-block ml-1.5 text-xs font-medium px-2 py-0.5 rounded" style={{ background: "#fff7ed", color: "#ff6c00" }}>
               Dashboard
             </span>
+            {/* Desktop Generator Records Header */}
+            <div className="hidden md:flex flex-col ml-2 pl-3 border-l border-gray-200 justify-center">
+              <span className="text-sm sm:text-base font-bold text-gray-900 leading-tight">
+                Generator Records
+              </span>
+              <span className="text-xs text-gray-500 leading-tight">
+                All entries are synced to your Google Sheet automatically.
+              </span>
+            </div>
           </div>
 
           {/* Mobile Top Search Bar matching mockup */}
@@ -1245,7 +1306,43 @@ export default function Dashboard() {
             />
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4">
+          {/* Right side: Action Buttons + Profile + Logout */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Action buttons - desktop only */}
+            <div className="hidden md:flex items-center gap-2 mr-2 pr-3 border-r border-gray-200">
+              <button
+                id="nav-button-refresh-data"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                title="Refresh all data"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all shadow-sm disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+                <span>Refresh</span>
+              </button>
+              <button
+                id="nav-button-download-data"
+                onClick={() => setIsDownloadModalOpen(true)}
+                title="Download or Print Generator Data"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all shadow-sm active:scale-95"
+              >
+                <Download className="w-3.5 h-3.5 text-gray-600" />
+                <span>Download</span>
+              </button>
+              {(user as any)?.sheetLink && (
+                <button
+                  id="nav-button-open-sheet"
+                  onClick={openSheetPasswordModal}
+                  title="Open Google Sheet (requires password)"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-all shadow-sm hover:opacity-90 active:scale-95"
+                  style={{ background: "#ff6c00" }}
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span className="whitespace-nowrap">Open Sheet</span>
+                </button>
+              )}
+            </div>
+
             <button
               onClick={() => setIsProfileOpen(true)}
               className="hidden md:flex items-center gap-2 text-sm hover:opacity-85 transition-opacity cursor-pointer border border-transparent p-1 rounded-lg hover:bg-gray-50"
@@ -1276,20 +1373,21 @@ export default function Dashboard() {
 
       <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-8 pb-24 md:pb-8 flex flex-col gap-4 sm:gap-6">
 
-        {/* Page title + action buttons */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+        {/* Page title + action buttons (mobile only, moved to navbar header on desktop) */}
+        <div className="flex md:hidden flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold" style={{ color: "#111827" }}>Generator Records</h1>
             <p className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: "#6b7280" }}>All entries are synced to your Google Sheet automatically.</p>
           </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar pb-1 sm:pb-0">
+          {/* Action buttons - mobile only (hidden on md+, shown in navbar there) */}
+          <div className="flex md:hidden items-center gap-2 w-full overflow-x-auto no-scrollbar pb-1">
             {/* Refresh button */}
             <button
               id="button-refresh-data"
               onClick={handleRefresh}
               disabled={isRefreshing}
               title="Refresh all data"
-              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs sm:text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all shadow-sm disabled:opacity-50"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all shadow-sm disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
               <span>Refresh</span>
@@ -1300,7 +1398,7 @@ export default function Dashboard() {
               id="button-download-data"
               onClick={() => setIsDownloadModalOpen(true)}
               title="Download or Print Generator Data"
-              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs sm:text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all shadow-sm active:scale-95"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all shadow-sm active:scale-95"
             >
               <Download className="w-3.5 h-3.5 text-gray-600" />
               <span>Download</span>
@@ -1312,7 +1410,7 @@ export default function Dashboard() {
                 id="button-open-sheet"
                 onClick={openSheetPasswordModal}
                 title="Open Google Sheet (requires password)"
-                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold text-white transition-all shadow-sm hover:opacity-90 active:scale-95"
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white transition-all shadow-sm hover:opacity-90 active:scale-95"
                 style={{ background: "#ff6c00" }}
               >
                 <Lock className="w-3.5 h-3.5" />
@@ -1372,92 +1470,208 @@ export default function Dashboard() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.18 }}
-              className="bg-white rounded-xl border border-purple-200 shadow-sm overflow-hidden"
+              className="bg-white rounded-xl border border-purple-200 shadow-xs overflow-hidden"
               style={{ borderColor: "#7c3aed33" }}
             >
-              <div className="px-4 py-3 sm:px-5 sm:py-3 border-b flex items-center justify-between" style={{ borderColor: "#f3f0ff", background: "#faf5ff" }}>
-                <div>
-                  <h3 className="text-xs sm:text-sm font-bold" style={{ color: "#7c3aed" }}>Sub-Model</h3>
-                  <p className="text-[11px] sm:text-xs mt-0.5" style={{ color: "#9ca3af" }}>Click a model to view its stats and filter the table below</p>
-                </div>
-                <Button
-                  size="sm"
-                  disabled={isReadOnly}
-                  onClick={() => {
-                    setNewModelNo("");
-                    setNewModelPrefix("");
-                    setIsAddSubModelOpen(true);
-                  }}
-                  className="h-7 sm:h-8 px-2.5 sm:px-3 text-xs font-semibold text-purple-600 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg flex items-center gap-1.5 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                  title={isReadOnly ? "Disabled in view-only guest session" : ""}
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add New Model
-                </Button>
-              </div>
-              <div className="p-3.5 sm:p-4">
-                {/* Sub-panel cards - compact, clean layout */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2.5">
-                  {cpanelStats && [...cpanelStats]
-                    .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: "base" }))
-                    .map((panel) => (
-                      <div
-                        key={panel.id}
-                        className="relative group"
-                      >
-                        <button
-                          onClick={() => setSelectedCPanel(selectedCPanel === panel.id ? null : panel.id)}
-                          className="w-full rounded-lg sm:rounded-xl p-2.5 sm:p-3 flex flex-col justify-between text-left border transition-all hover:shadow-md"
-                          style={{
-                            borderColor: selectedCPanel === panel.id ? "#7c3aed" : "#e5e7eb",
-                            background: selectedCPanel === panel.id ? "#f5f3ff" : "#ffffff",
-                            boxShadow: selectedCPanel === panel.id ? "0 0 0 2px #7c3aed33" : "0 1px 2px rgba(0,0,0,0.04)",
-                          }}
-                        >
-                          <div className="min-w-0 w-full pr-7">
-                            <p className="text-xs sm:text-sm font-bold truncate" style={{ color: selectedCPanel === panel.id ? "#7c3aed" : "#1f2937" }}>
-                              {panel.id}
-                            </p>
-                            <p className="text-[10px] mt-0.5 truncate" style={{ color: "#9ca3af" }}>
-                              {panel.prefixes.join(", ")}
-                            </p>
-                          </div>
-                          <p className="text-lg sm:text-xl font-black leading-none mt-2" style={{ color: selectedCPanel === panel.id ? "#7c3aed" : "#111827" }}>
-                            {panel.total}
-                          </p>
-                        </button>
-                        {/* Edit + Delete icons - visible on hover or when selected */}
-                        <div className={`absolute top-2 right-2 flex items-center gap-0.5 transition-opacity duration-200 ${selectedCPanel === panel.id
-                          ? "opacity-100 pointer-events-auto"
-                          : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
-                          }`}>
-                          {!isReadOnly && (
-                            <>
-                              <button
-                                onClick={(e) => handleOpenEditSubModel(panel, e)}
-                                className="p-0.5 rounded text-purple-400 hover:bg-purple-50 hover:text-purple-600 transition-colors"
-                                title="Edit Model"
-                              >
-                                <Edit2 className="w-3 h-3" />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteSubModel(panel.id);
-                                }}
-                                className="p-0.5 rounded text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                                title="Delete Model"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+              {/* Header Bar */}
+              <div
+                className="px-3.5 py-2 sm:px-4 sm:py-2.5 border-b flex flex-wrap items-center justify-between gap-2"
+                style={{ borderColor: "#f3f0ff", background: "#faf5ff" }}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-md bg-purple-100 flex items-center justify-center text-purple-700 shrink-0">
+                    <Layers className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h3 className="text-xs sm:text-sm font-bold text-purple-950 tracking-tight">Sub-Models</h3>
+                      {cpanelStats && cpanelStats.length > 0 && (
+                        <span className="text-[9.5px] font-semibold px-1.5 py-0.2 rounded-full bg-purple-100 text-purple-700 border border-purple-200/80">
+                          {cpanelStats.length} {cpanelStats.length === 1 ? "model" : "models"}
+                        </span>
+                      )}
+                      {selectedCPanel && (
+                        <span className="inline-flex items-center gap-1 text-[9.5px] font-medium px-2 py-0.2 rounded-full bg-purple-600 text-white shadow-xs">
+                          Active: {selectedCPanel}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCPanel(null)}
+                            className="hover:bg-purple-700 rounded-full p-0.5 transition-colors"
+                            title="Clear selection"
+                            aria-label="Clear active model filter"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[9.5px] sm:text-[10.5px] text-gray-500">
+                      Select a model card to filter the generator inventory below
+                    </p>
+                  </div>
                 </div>
 
-                {/* Selected panel stats */}
+                <div className="flex items-center gap-1.5 ml-auto">
+                  {selectedCPanel && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setSelectedCPanel(null)}
+                      className="h-6 px-1.5 text-xs text-purple-600 hover:text-purple-800 hover:bg-purple-100/50"
+                    >
+                      Clear filter
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    disabled={isReadOnly}
+                    onClick={() => {
+                      setNewModelNo("");
+                      setNewModelPrefix("");
+                      setIsAddSubModelOpen(true);
+                    }}
+                    className="h-7 px-2.5 text-xs font-semibold text-purple-700 bg-white hover:bg-purple-50 border border-purple-200 shadow-xs rounded-md flex items-center gap-1.5 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    title={isReadOnly ? "Disabled in view-only guest session" : ""}
+                  >
+                    <Plus className="w-3 h-3 text-purple-600" />
+                    <span>Add New Model</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Sub-Models Body */}
+              <div className="p-2 sm:p-3">
+                {/* Empty State */}
+                {(!cpanelStats || cpanelStats.length === 0) ? (
+                  <div className="py-6 px-3 text-center rounded-lg border border-dashed border-purple-200 bg-purple-50/20">
+                    <div className="w-8 h-8 mx-auto mb-1.5 rounded-full bg-purple-100 flex items-center justify-center text-purple-600">
+                      <Layers className="w-4 h-4" />
+                    </div>
+                    <p className="text-xs font-semibold text-gray-800">No Sub-Models Configured</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5 max-w-xs mx-auto">
+                      Define sub-models with generator ID prefixes to track and filter subsets of your fleet.
+                    </p>
+                    {!isReadOnly && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewModelNo("");
+                          setNewModelPrefix("");
+                          setIsAddSubModelOpen(true);
+                        }}
+                        className="mt-2 text-xs font-semibold text-purple-600 hover:text-purple-700 underline inline-flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" /> Add your first sub-model
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  /* Cards Grid - compact and responsive with tighter spacing */
+                  <div className="grid grid-cols-2 min-[440px]:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-1 sm:gap-1.5">
+                    {[...cpanelStats]
+                      .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: "base" }))
+                      .map((panel) => {
+                        const isSelected = selectedCPanel === panel.id;
+                        return (
+                          <div
+                            key={panel.id}
+                            onClick={() => setSelectedCPanel(isSelected ? null : panel.id)}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                setSelectedCPanel(isSelected ? null : panel.id);
+                              }
+                            }}
+                            className={`group relative rounded-lg border px-2 py-1 sm:px-2.5 sm:py-1.5 transition-all duration-150 cursor-pointer flex flex-col justify-between select-none text-left ${
+                              isSelected
+                                ? "bg-gradient-to-br from-purple-50 via-white to-purple-100/50 border-purple-500 shadow-xs ring-1.5 ring-purple-500/20"
+                                : "bg-white border-gray-200 hover:border-purple-300 hover:shadow-xs hover:bg-purple-50/15"
+                            }`}
+                          >
+                            {/* Card Top Row: Model Name & Dedicated Action Buttons */}
+                            <div className="flex items-center justify-between gap-1 pb-0.5">
+                              {/* Model ID - bada/bigger & bolder */}
+                              <div className="flex items-center gap-1 min-w-0 flex-1">
+                                <span
+                                  className={`text-xs sm:text-[13.5px] font-black truncate tracking-tight leading-none ${
+                                    isSelected ? "text-purple-700" : "text-gray-950"
+                                  }`}
+                                  title={panel.id}
+                                >
+                                  {panel.id}
+                                </span>
+                                {isSelected && (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-purple-600 shrink-0 animate-pulse" />
+                                )}
+                              </div>
+
+                              {/* Actions: Edit & Delete (Only show when clicked/selected) */}
+                              {!isReadOnly && isSelected && (
+                                <div
+                                  className="flex items-center gap-0.5 shrink-0"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleOpenEditSubModel(panel, e)}
+                                    className="p-0.5 rounded text-gray-400 hover:text-purple-600 hover:bg-purple-100 transition-colors"
+                                    title="Edit Model"
+                                    aria-label={`Edit ${panel.id}`}
+                                  >
+                                    <Edit2 className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteSubModel(panel.id);
+                                    }}
+                                    className="p-0.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-100 transition-colors"
+                                    title="Delete Model"
+                                    aria-label={`Delete ${panel.id}`}
+                                  >
+                                    <Trash2 className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Card Bottom Row: Prefixes Tag & Total Count */}
+                            <div className="flex items-baseline justify-between gap-1 pt-0.5 border-t border-gray-100">
+                              <div className="min-w-0 flex-1">
+                                <span className="text-[7.5px] font-semibold uppercase tracking-wider text-gray-400 block leading-tight">
+                                  Prefix
+                                </span>
+                                <span
+                                  className="text-[9px] sm:text-[9.5px] font-medium text-gray-600 truncate block leading-tight"
+                                  title={panel.prefixes.join(", ")}
+                                >
+                                  {panel.prefixes.join(", ") || "—"}
+                                </span>
+                              </div>
+
+                              <div className="text-right shrink-0">
+                                <span
+                                  className={`text-sm sm:text-base font-extrabold tabular-nums leading-tight block ${
+                                    isSelected ? "text-purple-700" : "text-gray-950"
+                                  }`}
+                                >
+                                  {panel.total}
+                                </span>
+                                <span className="text-[9px] sm:text-[10px] text-gray-400 font-medium block leading-tight">
+                                  units
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+
+                {/* Selected panel stats - Status Breakdown */}
                 <AnimatePresence>
                   {selectedPanelData && (
                     <motion.div
@@ -1468,25 +1682,89 @@ export default function Dashboard() {
                       transition={{ duration: 0.15 }}
                       className="overflow-hidden"
                     >
-                      <div className="mt-3 pt-3 border-t" style={{ borderColor: "#f3f0ff" }}>
-                        <h4 className="text-xs sm:text-sm font-semibold mb-2.5" style={{ color: "#374151" }}>
-                          {selectedPanelData.label} — Status Breakdown
-                        </h4>
-                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-2.5">
-                          <div className="rounded-lg p-2.5 sm:p-3 text-center border border-gray-200" style={{ background: "#f9fafb" }}>
-                            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide" style={{ color: "#6b7280" }}>Total</p>
-                            <p className="text-lg sm:text-xl font-bold mt-0.5" style={{ color: "#111827" }}>{selectedPanelData.total}</p>
+                      <div className="mt-2 pt-2 border-t border-purple-100">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-600" />
+                            <h4 className="text-xs font-bold text-gray-800 tracking-tight">
+                              Status Breakdown: <span className="text-purple-700">{selectedPanelData.id}</span>
+                            </h4>
+                            <span className="text-[9.5px] text-gray-400 font-normal hidden sm:inline">
+                              ({selectedPanelData.prefixes.join(", ")})
+                            </span>
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCPanel(null)}
+                            className="text-[10.5px] font-medium text-purple-600 hover:text-purple-800 flex items-center gap-1 transition-colors"
+                          >
+                            <X className="w-3 h-3" />
+                            <span>Close</span>
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1 sm:gap-1.5">
+                          {/* Total Status Card */}
+                          <div
+                            className="rounded-lg p-1 px-2 sm:px-2.5 sm:py-1 flex items-center justify-between border transition-all"
+                            style={{
+                              background: "linear-gradient(145deg, #ffffff 40%, rgba(30,41,59,0.04) 75%, rgba(30,41,59,0.12) 100%)",
+                              borderColor: "rgba(30,41,59,0.18)",
+                              boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                            }}
+                          >
+                            <div className="min-w-0 flex-1 pr-1">
+                              <p
+                                className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 truncate leading-tight"
+                                style={{ fontFamily: "Google_Sans, 'Google Sans', 'Plus Jakarta Sans', 'Inter', sans-serif" }}
+                              >
+                                TOTAL
+                              </p>
+                              <p
+                                className="text-sm sm:text-base font-extrabold leading-tight tracking-tight text-slate-900 mt-0.5 tabular-nums"
+                                style={{ fontFamily: "Google_Sans_Medium, 'Google Sans Medium', 'Google Sans', 'Plus Jakarta Sans', 'Inter', sans-serif" }}
+                              >
+                                {selectedPanelData.total}
+                              </p>
+                            </div>
+                            <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-slate-700" />
+                          </div>
+
+                          {/* Individual Status Breakdown Cards */}
                           {STATUSES.map((status) => {
                             const cfg = STATUS_CONFIG[status];
+                            const statusColor = cfg.text;
+                            const count = selectedPanelData.byStatus[status] ?? 0;
                             return (
                               <div
                                 key={status}
-                                className="rounded-lg p-2.5 sm:p-3 text-center border"
-                                style={{ background: cfg.bg, borderColor: `${cfg.dot}44` }}
+                                className="rounded-lg p-1 px-2 sm:px-2.5 sm:py-1 flex items-center justify-between border transition-all"
+                                style={{
+                                  background: `linear-gradient(145deg, #ffffff 40%, ${getRgba(statusColor, 0.04)} 75%, ${getRgba(statusColor, 0.12)} 100%)`,
+                                  borderColor: getRgba(statusColor, 0.28),
+                                  boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                                }}
                               >
-                                <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide truncate" style={{ color: cfg.text }}>{status}</p>
-                                <p className="text-lg sm:text-xl font-bold mt-0.5" style={{ color: cfg.text }}>{selectedPanelData.byStatus[status] ?? 0}</p>
+                                <div className="min-w-0 flex-1 pr-1">
+                                  <p
+                                    className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider truncate leading-tight"
+                                    style={{
+                                      color: statusColor,
+                                      fontFamily: "Google_Sans, 'Google Sans', 'Plus Jakarta Sans', 'Inter', sans-serif",
+                                    }}
+                                  >
+                                    {status}
+                                  </p>
+                                  <p
+                                    className="text-sm sm:text-base font-extrabold leading-tight tracking-tight mt-0.5 tabular-nums"
+                                    style={{
+                                      color: statusColor,
+                                      fontFamily: "Google_Sans_Medium, 'Google Sans Medium', 'Google Sans', 'Plus Jakarta Sans', 'Inter', sans-serif",
+                                    }}
+                                  >
+                                    {count}
+                                  </p>
+                                </div>
+                                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: statusColor }} />
                               </div>
                             );
                           })}
@@ -1534,20 +1812,23 @@ export default function Dashboard() {
         {/* Table card */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           {/* Toolbar */}
-          <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between px-4 sm:px-5 py-3.5 sm:py-4 border-b border-gray-100">
-            <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 flex-1 w-full md:w-auto">
-              <div className="relative flex-1 w-full sm:w-64">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#9ca3af" }} />
+          <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between px-4 sm:px-5 py-3 border-b border-gray-200 bg-white">
+            <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 flex-1 items-stretch sm:items-center">
+              {/* Search input (left-aligned, ~40% width) */}
+              <div className="relative w-full sm:w-[40%] min-w-[240px] max-w-md">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <Input
                   placeholder="Search by ID, date or remarks..."
-                  className="pl-9 h-10 sm:h-9 text-sm bg-gray-50 border-gray-200 w-full"
+                  className="pl-9 h-9 text-xs sm:text-sm bg-white border-gray-300 rounded-lg w-full focus:border-orange-500 focus:ring-1 focus:ring-orange-500 shadow-2xs"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   data-testid="input-search"
                 />
               </div>
+
+              {/* "All Status" dropdown/select (outlined style) */}
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-40 h-10 sm:h-9 text-sm bg-gray-50 border-gray-200" data-testid="select-status-filter">
+                <SelectTrigger className="w-full sm:w-40 h-9 text-xs sm:text-sm bg-white border-gray-300 rounded-lg shadow-2xs" data-testid="select-status-filter">
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1561,12 +1842,14 @@ export default function Dashboard() {
                 </SelectContent>
               </Select>
 
-              {/* View Mode Tabs */}
-              <div className="flex rounded-lg border border-gray-200 p-0.5 bg-gray-50 h-10 sm:h-9 overflow-x-auto no-scrollbar whitespace-nowrap">
+              {/* Segmented tab group (pill segments) */}
+              <div className="flex rounded-lg border border-gray-200 p-0.5 bg-gray-100/80 h-9 overflow-x-auto no-scrollbar whitespace-nowrap">
                 <button
                   type="button"
                   onClick={() => setViewMode("main")}
-                  className={`flex-1 px-3 py-1 text-xs font-semibold rounded-md transition-colors ${viewMode === "main" ? "bg-white text-gray-900 shadow-sm border border-gray-100" : "text-gray-500 hover:text-gray-900"}`}
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                    viewMode === "main" ? "bg-white text-gray-900 shadow-xs" : "text-gray-500 hover:text-gray-900"
+                  }`}
                   data-testid="button-view-main"
                 >
                   Main View
@@ -1574,7 +1857,9 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => setViewMode("delivery")}
-                  className={`flex-1 px-3 py-1 text-xs font-semibold rounded-md transition-colors ${viewMode === "delivery" ? "bg-white text-gray-900 shadow-sm border border-gray-100" : "text-gray-500 hover:text-gray-900"}`}
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                    viewMode === "delivery" ? "bg-white text-gray-900 shadow-xs" : "text-gray-500 hover:text-gray-900"
+                  }`}
                   data-testid="button-view-delivery"
                 >
                   Current Delivery
@@ -1582,7 +1867,9 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => setViewMode("previous")}
-                  className={`flex-1 px-3 py-1 text-xs font-semibold rounded-md transition-colors ${viewMode === "previous" ? "bg-white text-gray-900 shadow-sm border border-gray-100" : "text-gray-500 hover:text-gray-900"}`}
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                    viewMode === "previous" ? "bg-white text-gray-900 shadow-xs" : "text-gray-500 hover:text-gray-900"
+                  }`}
                   data-testid="button-view-previous"
                 >
                   Previous Delivery
@@ -1590,11 +1877,12 @@ export default function Dashboard() {
               </div>
             </div>
 
+            {/* Primary "+ Add Record" button (orange/amber #F5821F) */}
             <Button
               onClick={openAdd}
               disabled={isReadOnly}
-              className="h-10 sm:h-9 px-4 text-sm font-semibold text-white rounded-lg flex items-center justify-center gap-2 w-full md:w-auto whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: "#ff6c00" }}
+              className="h-9 px-4 text-xs sm:text-sm font-semibold text-white rounded-lg flex items-center justify-center gap-1.5 w-full sm:w-auto whitespace-nowrap transition-all active:scale-95 shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: "#F5821F" }}
               data-testid="button-add-record"
               title={isReadOnly ? "Disabled in view-only guest session" : ""}
             >
@@ -1618,8 +1906,9 @@ export default function Dashboard() {
                 <div className="w-6 h-6 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin mx-auto mb-2" />
                 Loading records...
               </div>
-            ) : generators.length > 0 ? (
-              generators.map((record) => {
+            ) : paginatedGenerators.length > 0 ? (
+              <>
+              {paginatedGenerators.map((record) => {
                 const panel = getGeneratorPanel(record.generatorId, panels);
                 const isDeliverable = (record.status === "Ready" || record.status === "Used Ready") && !isReadOnly;
                 const statusCfg = STATUS_CONFIG[record.status] ?? STATUS_CONFIG["On-Site"];
@@ -1688,6 +1977,18 @@ export default function Dashboard() {
                           <div className="min-w-0">
                             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Record Date</span>
                             <span className="font-extrabold text-gray-900 text-xs truncate block">{formatDate(record.tDate)}</span>
+                          </div>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-gray-50 border border-gray-100 flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-indigo-100/80 text-indigo-600 flex items-center justify-center font-bold flex-shrink-0">
+                            <Clock className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Valve Lash</span>
+                            <span className="font-extrabold text-gray-900 text-xs truncate block">
+                              {record.valveLashHrs ? `${record.valveLashHrs}${/^\d+(\.\d+)?$/.test(String(record.valveLashHrs).trim()) ? 'h' : ''}` : "—"}
+                            </span>
                           </div>
                         </div>
 
@@ -1769,7 +2070,49 @@ export default function Dashboard() {
                     </div>
                   </div>
                 );
-              })
+              })}
+
+              {/* Mobile Pagination Footer */}
+              <div className="flex items-center justify-between gap-2 bg-white rounded-xl border border-gray-200 px-3 py-2.5 shadow-sm">
+                <span className="text-[11px] text-gray-500">
+                  {totalRecords === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalRecords)} of {totalRecords}
+                </span>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="h-7 px-1.5 bg-gray-50 border border-gray-200 rounded text-[11px] font-medium text-gray-700 focus:outline-none focus:ring-1 focus:ring-orange-500 cursor-pointer"
+                  >
+                    <option value={15}>15</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[11px] text-gray-500">
+                      {page}/{totalPages}
+                    </span>
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page <= 1}
+                      className="p-1 rounded border border-gray-200 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page >= totalPages}
+                      className="p-1 rounded border border-gray-200 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              </>
             ) : (
               <div className="px-4 py-12 text-center text-sm text-gray-500 bg-white rounded-2xl border border-gray-100">
                 <div className="flex flex-col items-center gap-2">
@@ -1780,195 +2123,404 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Table (Desktop >= md screens) */}
-          <div className="hidden md:block overflow-x-auto overflow-y-auto max-h-[60vh]">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10 bg-[#f9fafb] shadow-[0_1px_0_0_rgba(229,231,235,1)]">
-                <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                  <th className="px-5 py-3 text-left w-10">
-                    <input
-                      type="checkbox"
-                      checked={generators.length > 0 && generators.every(r => selectedRecordIds.has(r.id))}
-                      onChange={(e) => {
-                        const newIds = new Set(selectedRecordIds);
-                        if (e.target.checked) {
-                          generators.forEach(r => newIds.add(r.id));
-                        } else {
-                          generators.forEach(r => newIds.delete(r.id));
-                        }
-                        setSelectedRecordIds(newIds);
-                      }}
-                      className="rounded border-gray-300 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
-                    />
-                  </th>
-                  {(viewMode === "delivery"
-                    ? ["Date", "GENSET ID", "Model", "Status", "Rating", "Hours", "Remarks", "Delivered To", "R", ""]
-                    : viewMode === "previous"
-                      ? ["Date", "GENSET ID", "Model", "Status", "Rating", "Hours", "Remarks", "Prev Delivered To", ""]
-                      : ["Date", "GENSET ID", "Model", "Status", "Rating", "Hours", "Remarks", "D", ""]
-                  ).map(h => (
-                    <th key={h} className="text-left px-5 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: "#6b7280" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {isLoadingGenerators ? (
-                  <tr>
-                    <td colSpan={viewMode === "delivery" ? 11 : 10} className="px-5 py-12 text-center text-sm" style={{ color: "#9ca3af" }}>
-                      Loading records...
-                    </td>
-                  </tr>
-                ) : generators.length > 0 ? (
-                  generators.map((record, idx) => {
-                    const panel = getGeneratorPanel(record.generatorId, panels);
-                    return (
-                      <tr
-                        key={record.id}
-                        style={{ borderBottom: idx < generators.length - 1 ? "1px solid #f3f4f6" : "none" }}
-                        className="hover:bg-orange-50/40 transition-colors"
-                        data-testid={`row-generator-${record.id}`}
-                      >
-                        <td className="px-5 py-3.5 w-10">
-                          <input
-                            type="checkbox"
-                            checked={selectedRecordIds.has(record.id)}
-                            onChange={(e) => {
-                              const newIds = new Set(selectedRecordIds);
-                              if (e.target.checked) {
-                                newIds.add(record.id);
-                              } else {
-                                newIds.delete(record.id);
-                              }
-                              setSelectedRecordIds(newIds);
-                            }}
-                            className="rounded border-gray-300 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
-                          />
-                        </td>
-                        <td className="px-5 py-3.5 font-medium" style={{ color: "#374151" }}>{formatDate(record.tDate)}</td>
-                        <td className="px-5 py-3.5">
-                          <span className="font-semibold" style={{ color: "#111827" }}>{record.generatorId}</span>
-                        </td>
-                        <td className="px-5 py-3.5">
-                          {panel !== "Other" ? (
-                            <span
-                              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold"
-                              style={{ background: "#f5f3ff", color: "#7c3aed" }}
-                            >
-                              {panel}
-                            </span>
+          {/* Table (Desktop >= md screens) - MUI DataGrid inspired UI */}
+          <div className="hidden md:block border-t border-gray-200">
+            <div className="overflow-x-auto overflow-y-auto max-h-[60vh] scrollbar-thin scrollbar-thumb-gray-300">
+              <table className="w-full text-sm border-collapse table-fixed">
+                <thead className="sticky top-0 z-20 bg-gray-50/95 backdrop-blur-xs shadow-[0_1px_0_0_rgba(229,231,235,1)]">
+                  <tr className="border-b border-gray-200 text-left">
+                    {/* Checkbox (fixed 40px, sticky left) */}
+                    <th className="w-[40px] min-w-[40px] max-w-[40px] px-2.5 py-2.5 text-center sticky left-0 z-30 bg-gray-50 border-r border-gray-200">
+                      <input
+                        type="checkbox"
+                        checked={paginatedGenerators.length > 0 && paginatedGenerators.every(r => selectedRecordIds.has(r.id))}
+                        onChange={(e) => {
+                          const newIds = new Set(selectedRecordIds);
+                          if (e.target.checked) {
+                            paginatedGenerators.forEach(r => newIds.add(r.id));
+                          } else {
+                            paginatedGenerators.forEach(r => newIds.delete(r.id));
+                          }
+                          setSelectedRecordIds(newIds);
+                        }}
+                        className="rounded border-gray-300 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                        title="Select All on Page"
+                      />
+                    </th>
+
+                    {/* DATE (width ~110px) */}
+                    <th
+                      onClick={() => handleSort("tDate")}
+                      className="w-[110px] min-w-[110px] max-w-[110px] px-2.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-[#6B7280] cursor-pointer select-none hover:text-gray-900 transition-colors"
+                      title="Sort by Date"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>DATE</span>
+                        <span className="shrink-0 text-gray-400">
+                          {sortField === "tDate" ? (
+                            sortAsc ? <ArrowUp className="w-3.5 h-3.5 text-orange-500" /> : <ArrowDown className="w-3.5 h-3.5 text-orange-500" />
                           ) : (
-                            <span className="text-xs" style={{ color: "#d1d5db" }}>—</span>
+                            <ArrowUpDown className="w-3 h-3 opacity-30 hover:opacity-100" />
                           )}
-                        </td>
-                        <td className="px-5 py-3.5">
-                          <StatusBadge status={record.status} />
-                        </td>
-                        <td className="px-5 py-3.5" style={{ color: "#6b7280" }}>{record.rating || "-"}</td>
-                        <td className="px-5 py-3.5 font-medium" style={{ color: "#374151" }}>{record.hours != null ? `${record.hours}h` : "-"}</td>
-                        <td className="px-5 py-3.5 max-w-xs truncate" style={{ color: "#6b7280" }}>
-                          <RemarksCell record={record} panel={panel} />
-                        </td>
-                        {(viewMode === "delivery" || viewMode === "previous") && (
-                          <td className="px-5 py-3.5 font-medium" style={{ color: "#374151" }}>
-                            {record.deliveryTo || "-"}
+                        </span>
+                      </div>
+                    </th>
+
+                    {/* GENSET ID (bold, width ~110px) */}
+                    <th
+                      onClick={() => handleSort("generatorId")}
+                      className="w-[110px] min-w-[110px] max-w-[110px] px-2.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-[#6B7280] cursor-pointer select-none hover:text-gray-900 transition-colors"
+                      title="Sort by Genset ID"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>GENSET ID</span>
+                        <span className="shrink-0 text-gray-400">
+                          {sortField === "generatorId" ? (
+                            sortAsc ? <ArrowUp className="w-3.5 h-3.5 text-orange-500" /> : <ArrowDown className="w-3.5 h-3.5 text-orange-500" />
+                          ) : (
+                            <ArrowUpDown className="w-3 h-3 opacity-30 hover:opacity-100" />
+                          )}
+                        </span>
+                      </div>
+                    </th>
+
+                    {/* MODEL (chip-style purple, width ~80px) */}
+                    <th
+                      onClick={() => handleSort("panel")}
+                      className="w-[80px] min-w-[80px] max-w-[80px] px-2.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-[#6B7280] cursor-pointer select-none hover:text-gray-900 transition-colors"
+                      title="Sort by Model"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>MODEL</span>
+                        <span className="shrink-0 text-gray-400">
+                          {sortField === "panel" ? (
+                            sortAsc ? <ArrowUp className="w-3.5 h-3.5 text-orange-500" /> : <ArrowDown className="w-3.5 h-3.5 text-orange-500" />
+                          ) : (
+                            <ArrowUpDown className="w-3 h-3 opacity-30 hover:opacity-100" />
+                          )}
+                        </span>
+                      </div>
+                    </th>
+
+                    {/* STATUS (colored dot + label, width ~140px) */}
+                    <th
+                      onClick={() => handleSort("status")}
+                      className="w-[140px] min-w-[140px] max-w-[140px] px-2.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-[#6B7280] cursor-pointer select-none hover:text-gray-900 transition-colors"
+                      title="Sort by Status"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>STATUS</span>
+                        <span className="shrink-0 text-gray-400">
+                          {sortField === "status" ? (
+                            sortAsc ? <ArrowUp className="w-3.5 h-3.5 text-orange-500" /> : <ArrowDown className="w-3.5 h-3.5 text-orange-500" />
+                          ) : (
+                            <ArrowUpDown className="w-3 h-3 opacity-30 hover:opacity-100" />
+                          )}
+                        </span>
+                      </div>
+                    </th>
+
+                    {/* RATING (plain text, width ~90px) */}
+                    <th
+                      onClick={() => handleSort("rating")}
+                      className="w-[90px] min-w-[90px] max-w-[90px] px-2.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-[#6B7280] cursor-pointer select-none hover:text-gray-900 transition-colors"
+                      title="Sort by Rating"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>RATING</span>
+                        <span className="shrink-0 text-gray-400">
+                          {sortField === "rating" ? (
+                            sortAsc ? <ArrowUp className="w-3.5 h-3.5 text-orange-500" /> : <ArrowDown className="w-3.5 h-3.5 text-orange-500" />
+                          ) : (
+                            <ArrowUpDown className="w-3 h-3 opacity-30 hover:opacity-100" />
+                          )}
+                        </span>
+                      </div>
+                    </th>
+
+                    {/* HOURS (plain text, width ~80px) */}
+                    <th
+                      onClick={() => handleSort("hours")}
+                      className="w-[80px] min-w-[80px] max-w-[80px] px-2.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-[#6B7280] cursor-pointer select-none hover:text-gray-900 transition-colors"
+                      title="Sort by Hours"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>HOURS</span>
+                        <span className="shrink-0 text-gray-400">
+                          {sortField === "hours" ? (
+                            sortAsc ? <ArrowUp className="w-3.5 h-3.5 text-orange-500" /> : <ArrowDown className="w-3.5 h-3.5 text-orange-500" />
+                          ) : (
+                            <ArrowUpDown className="w-3 h-3 opacity-30 hover:opacity-100" />
+                          )}
+                        </span>
+                      </div>
+                    </th>
+
+                    {/* REMARKS (flex-grow column) */}
+                    <th className="min-w-[160px] px-2.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+                      REMARKS
+                    </th>
+
+                    {/* VALVE LASH HRS (width ~155px) */}
+                    <th
+                      onClick={() => handleSort("valveLashHrs")}
+                      className="w-[155px] min-w-[155px] max-w-[155px] px-2.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-[#6B7280] cursor-pointer select-none hover:text-gray-900 transition-colors whitespace-nowrap"
+                      title="Sort by Valve Lash Hrs"
+                    >
+                      <div className="flex items-center gap-1 whitespace-nowrap">
+                        <span className="whitespace-nowrap">VALVE LASH HRS</span>
+                        <span className="shrink-0 text-gray-400">
+                          {sortField === "valveLashHrs" ? (
+                            sortAsc ? <ArrowUp className="w-3.5 h-3.5 text-orange-500" /> : <ArrowDown className="w-3.5 h-3.5 text-orange-500" />
+                          ) : (
+                            <ArrowUpDown className="w-3 h-3 opacity-30 hover:opacity-100" />
+                          )}
+                        </span>
+                      </div>
+                    </th>
+
+                    {/* DELIVERED TO (conditional for delivery/previous view) */}
+                    {(viewMode === "delivery" || viewMode === "previous") && (
+                      <th className={`w-[130px] min-w-[130px] max-w-[130px] px-2.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-[#6B7280] ${viewMode === "previous" ? "border-r border-gray-200" : ""}`}>
+                        {viewMode === "previous" ? "PREV DELIVERED TO" : "DELIVERED TO"}
+                      </th>
+                    )}
+
+                    {/* D / R (deliver button, width ~50px) */}
+                    {viewMode !== "previous" && (
+                      <th className="w-[50px] min-w-[50px] max-w-[50px] px-2 py-2.5 text-center text-xs font-semibold uppercase tracking-wider text-[#6B7280] border-r border-gray-200">
+                        {viewMode === "delivery" ? "R" : "D"}
+                      </th>
+                    )}
+
+                    {/* ACTIONS (width ~70px, sticky right) */}
+                    <th className="w-[70px] min-w-[70px] max-w-[70px] px-2 py-2.5 text-center text-xs font-semibold uppercase tracking-wider text-[#6B7280] sticky right-0 z-30 bg-gray-50 border-l border-gray-200">
+                      ACTIONS
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200/80">
+                  {isLoadingGenerators ? (
+                    <tr>
+                      <td colSpan={viewMode === "delivery" ? 12 : 11} className="px-5 py-12 text-center text-sm text-gray-400">
+                        <div className="w-5 h-5 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin mx-auto mb-2" />
+                        Loading records...
+                      </td>
+                    </tr>
+                  ) : paginatedGenerators.length > 0 ? (
+                    paginatedGenerators.map((record) => {
+                      const panel = getGeneratorPanel(record.generatorId, panels);
+                      const isDeliverable = (record.status === "Ready" || record.status === "Used Ready") && !isReadOnly;
+
+                      return (
+                        <tr
+                          key={record.id}
+                          className="group h-[42px] even:bg-[#FAFAFA] hover:bg-[#F5F5F5] transition-colors"
+                          data-testid={`row-generator-${record.id}`}
+                        >
+                          {/* Checkbox (sticky left) */}
+                          <td className="w-[40px] min-w-[40px] max-w-[40px] px-2.5 py-1 text-center sticky left-0 z-10 bg-white group-even:bg-[#FAFAFA] group-hover:bg-[#F5F5F5] border-r border-gray-200">
+                            <input
+                              type="checkbox"
+                              checked={selectedRecordIds.has(record.id)}
+                              onChange={(e) => {
+                                const newIds = new Set(selectedRecordIds);
+                                if (e.target.checked) newIds.add(record.id);
+                                else newIds.delete(record.id);
+                                setSelectedRecordIds(newIds);
+                              }}
+                              className="rounded border-gray-300 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                            />
                           </td>
-                        )}
-                        {/* D / R — Delivery button */}
-                        {viewMode !== "previous" && (
-                          <td className="px-5 py-3.5">
-                            {viewMode === "delivery" ? (
-                              <button
-                                onClick={() => openReturnModal(record)}
-                                disabled={isReadOnly}
-                                title={isReadOnly ? "Disabled in view-only session" : "Return Generator"}
-                                className="p-1.5 rounded-lg transition-colors hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                                style={{
-                                  background: "#fef2f2",
-                                  border: "1px solid #fee2e2",
-                                }}
-                                data-testid={`button-return-${record.id}`}
-                              >
-                                <Truck
-                                  className="w-3.5 h-3.5"
-                                  style={{ color: "#dc2626" }}
-                                />
-                              </button>
+
+                          {/* DATE (DD-MM-YYYY) */}
+                          <td className="w-[110px] min-w-[110px] max-w-[110px] px-2.5 py-1 text-xs font-medium text-gray-700 whitespace-nowrap">
+                            {formatDate(record.tDate)}
+                          </td>
+
+                          {/* GENSET ID (bold) */}
+                          <td className="w-[110px] min-w-[110px] max-w-[110px] px-2.5 py-1 text-xs font-bold text-gray-900 truncate">
+                            {record.generatorId}
+                          </td>
+
+                          {/* MODEL (chip in purple #6C4FE0) */}
+                          <td className="w-[80px] min-w-[80px] max-w-[80px] px-2.5 py-1">
+                            {panel !== "Other" ? (
+                              <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-bold bg-[#f5f3ff] text-[#6C4FE0] border border-[#ede9fe]">
+                                {panel}
+                              </span>
                             ) : (
-                              (() => {
-                                const isDeliverable = (record.status === "Ready" || record.status === "Used Ready") && !isReadOnly;
-                                const cfg = STATUS_CONFIG[record.status] ?? STATUS_CONFIG["On-Site"];
-                                return (
-                                  <button
-                                    onClick={() => openDeliveryModal(record)}
-                                    disabled={!isDeliverable}
-                                    title={isReadOnly ? "Disabled in view-only session" : isDeliverable ? "Deliver Generator" : "Only 'Ready' or 'Used Ready' generators can be delivered"}
-                                    className="p-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                    style={{
-                                      background: isDeliverable ? cfg.bg : "#f3f4f6",
-                                      border: `1px solid ${isDeliverable ? cfg.dot : "#e5e7eb"}`,
-                                    }}
-                                    data-testid={`button-deliver-${record.id}`}
-                                  >
-                                    <Truck
-                                      className="w-3.5 h-3.5"
-                                      style={{ color: isDeliverable ? cfg.text : "#9ca3af" }}
-                                    />
-                                  </button>
-                                );
-                              })()
+                              <span className="text-xs text-gray-400">—</span>
                             )}
                           </td>
-                        )}
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => openEdit(record)}
-                              disabled={isReadOnly}
-                              className="p-1.5 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                              title={isReadOnly ? "Disabled in view-only session" : "Edit"}
-                              data-testid={`button-edit-${record.id}`}
-                            >
-                              <Edit2 className="w-3.5 h-3.5" style={{ color: isReadOnly ? "#9ca3af" : "#3b82f6" }} />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(record.id)}
-                              disabled={isReadOnly}
-                              className="p-1.5 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                              title={isReadOnly ? "Disabled in view-only session" : "Delete"}
-                              data-testid={`button-delete-${record.id}`}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" style={{ color: isReadOnly ? "#9ca3af" : "#ef4444" }} />
-                            </button>
+
+                          {/* STATUS (colored dot + label) */}
+                          <td className="w-[140px] min-w-[140px] max-w-[140px] px-2.5 py-1">
+                            <StatusBadge status={record.status} />
+                          </td>
+
+                          {/* RATING */}
+                          <td className="w-[90px] min-w-[90px] max-w-[90px] px-2.5 py-1 text-xs text-gray-600 font-medium truncate">
+                            {record.rating || "—"}
+                          </td>
+
+                          {/* HOURS */}
+                          <td className="w-[80px] min-w-[80px] max-w-[80px] px-2.5 py-1 text-xs text-gray-700 font-semibold tabular-nums">
+                            {record.hours != null ? `${record.hours}h` : "—"}
+                          </td>
+
+                          {/* REMARKS (flex-grow, single-line ellipsis) */}
+                          <td className="min-w-[160px] px-2.5 py-1 text-xs max-w-xs truncate text-gray-700">
+                            <RemarksCell record={record} panel={panel} />
+                          </td>
+
+                          {/* VALVE LASH HRS */}
+                          <td className="w-[155px] min-w-[155px] max-w-[155px] px-2.5 py-1 text-xs text-gray-700 font-semibold tabular-nums truncate">
+                            {record.valveLashHrs ? `${record.valveLashHrs}${/^\d+(\.\d+)?$/.test(String(record.valveLashHrs).trim()) ? 'h' : ''}` : "—"}
+                          </td>
+
+                          {/* DELIVERED TO */}
+                          {(viewMode === "delivery" || viewMode === "previous") && (
+                            <td className={`w-[130px] min-w-[130px] max-w-[130px] px-2.5 py-1 text-xs font-medium text-gray-700 truncate ${viewMode === "previous" ? "border-r border-gray-200" : ""}`}>
+                              {record.deliveryTo || "—"}
+                            </td>
+                          )}
+
+                          {/* D / R (deliver button, outline box) */}
+                          {viewMode !== "previous" && (
+                            <td className="w-[50px] min-w-[50px] max-w-[50px] px-1.5 py-1 text-center border-r border-gray-200">
+                              {viewMode === "delivery" ? (
+                                <button
+                                  onClick={() => openReturnModal(record)}
+                                  disabled={isReadOnly}
+                                  title={isReadOnly ? "Disabled in view-only session" : "Return Generator"}
+                                  className="w-7 h-7 rounded border border-[#E23B3B] bg-[#E23B3B]/10 text-[#E23B3B] hover:bg-[#E23B3B]/20 transition-all active:scale-95 inline-flex items-center justify-center disabled:opacity-40"
+                                  data-testid={`button-return-${record.id}`}
+                                >
+                                  <Truck className="w-3.5 h-3.5" />
+                                </button>
+                              ) : isDeliverable ? (
+                                <button
+                                  onClick={() => openDeliveryModal(record)}
+                                  title="Deliver Generator"
+                                  className="w-7 h-7 rounded border border-[#2E9E44] bg-[#2E9E44]/10 text-[#2E9E44] hover:bg-[#2E9E44]/20 transition-all active:scale-95 inline-flex items-center justify-center"
+                                  data-testid={`button-deliver-${record.id}`}
+                                >
+                                  <Truck className="w-3.5 h-3.5" />
+                                </button>
+                              ) : (
+                                <button
+                                  disabled
+                                  title="Only 'Ready' or 'Used Ready' generators can be delivered"
+                                  className="w-7 h-7 rounded border border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed inline-flex items-center justify-center"
+                                >
+                                  <Truck className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </td>
+                          )}
+
+                          {/* ACTIONS (pencil, trash icon buttons, sticky right) */}
+                          <td className="w-[70px] min-w-[70px] max-w-[70px] px-1.5 py-1 text-center sticky right-0 z-10 bg-white group-even:bg-[#FAFAFA] group-hover:bg-[#F5F5F5] border-l border-gray-200">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => openEdit(record)}
+                                disabled={isReadOnly}
+                                className="p-1 rounded text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                title={isReadOnly ? "Disabled in view-only session" : "Edit"}
+                                data-testid={`button-edit-${record.id}`}
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(record.id)}
+                                disabled={isReadOnly}
+                                className="p-1 rounded text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                title={isReadOnly ? "Disabled in view-only session" : "Delete"}
+                                data-testid={`button-delete-${record.id}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={viewMode === "delivery" ? 12 : 11} className="px-5 py-14 text-center">
+                        <div className="flex flex-col items-center gap-2.5">
+                          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-orange-50">
+                            <Database className="w-5 h-5 text-orange-500" />
                           </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={viewMode === "delivery" ? 11 : 10} className="px-5 py-16 text-center">
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "#fff7ed" }}>
-                          <Database className="w-6 h-6" style={{ color: "#ff6c00" }} />
+                          <p className="text-sm font-semibold text-gray-800">No records found</p>
+                          <p className="text-xs text-gray-500">
+                            {selectedCPanel ? `No records in ${panels.find(p => p.id === selectedCPanel)?.label}` : 'Click "Add Record" to create your first entry'}
+                          </p>
                         </div>
-                        <p className="text-sm font-medium" style={{ color: "#374151" }}>No records found</p>
-                        <p className="text-xs" style={{ color: "#9ca3af" }}>
-                          {selectedCPanel ? `No records in ${panels.find(p => p.id === selectedCPanel)?.label}` : 'Click "Add Record" to create your first entry'}
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* MUI X DataGrid Compact Footer: "Showing X records" + pagination controls */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-2.5 border-t border-gray-200 bg-white text-xs text-gray-600">
+              <div className="flex items-center gap-2">
+                <span>
+                  Showing {totalRecords === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalRecords)} of {totalRecords} records
+                </span>
+                {selectedRecordIds.size > 0 && (
+                  <span className="font-semibold text-orange-600 ml-1">
+                    • {selectedRecordIds.size} selected
+                  </span>
                 )}
-              </tbody>
-            </table>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-gray-500 text-[11px]">Rows per page:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="h-7 px-2 bg-gray-50 border border-gray-200 rounded text-xs font-medium text-gray-700 focus:outline-none focus:ring-1 focus:ring-orange-500 cursor-pointer"
+                  >
+                    <option value={15}>15</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <span className="text-gray-500 text-[11px] mr-1">
+                    Page {page} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    className="p-1 rounded border border-gray-200 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    title="Previous Page"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    className="p-1 rounded border border-gray-200 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    title="Next Page"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {generators.length > 0 && (
-            <div className="px-4 sm:px-5 py-3 border-t border-gray-100 text-xs" style={{ color: "#9ca3af" }}>
-              Showing {generators.length} record{generators.length !== 1 ? "s" : ""}
-              {selectedCPanel && ` in ${panels.find(p => p.id === selectedCPanel)?.label}`}
-            </div>
-          )}
         </div>
       </main>
 
@@ -2094,25 +2646,46 @@ export default function Dashboard() {
                       />
                     </div>
 
-                    <FormField
-                      control={form.control}
-                      name="rating"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-sm font-medium" style={{ color: "#374151" }}>Rating</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="e.g. 500kVA, Good, Excellent"
-                              className="h-10 bg-gray-50 border-gray-200"
-                              data-testid="input-rating"
-                              {...field}
-                              value={field.value ?? ""}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="rating"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-medium" style={{ color: "#374151" }}>Rating</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g. 500kVA, Good"
+                                className="h-10 bg-gray-50 border-gray-200"
+                                data-testid="input-rating"
+                                {...field}
+                                value={field.value ?? ""}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="valveLashHrs"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-medium" style={{ color: "#374151" }}>Valve Lash Hrs</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g. 250h or 500"
+                                className="h-10 bg-gray-50 border-gray-200"
+                                data-testid="input-valve-lash-hrs"
+                                {...field}
+                                value={field.value ?? ""}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
 
                     <FormField
                       control={form.control}
@@ -2254,7 +2827,20 @@ export default function Dashboard() {
               className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden border border-gray-100 z-10"
             >
               <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                <h3 className="font-bold text-lg text-gray-900">To Delivery</h3>
+                <div className="flex items-center gap-2.5">
+                  <h3
+                    className="font-bold text-lg text-gray-900 tracking-tight"
+                    style={{ fontFamily: "Google_Sans, 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif" }}
+                  >
+                    To Delivery
+                  </h3>
+                  <span
+                    className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-orange-50 text-[#ff6c00] border border-orange-200 tracking-wide"
+                    style={{ fontFamily: "Google_Sans_Medium, 'Google Sans Medium', 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif" }}
+                  >
+                    {deliveryModalRecord.generatorId}
+                  </span>
+                </div>
                 <button
                   onClick={() => setDeliveryModalRecord(null)}
                   className="text-gray-400 hover:text-gray-500 rounded-lg p-1 hover:bg-gray-100 transition-colors"
@@ -2264,22 +2850,58 @@ export default function Dashboard() {
               </div>
               <div className="p-6 space-y-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1">Receiver Name</label>
+                  <label
+                    className="text-sm font-medium text-gray-700 block mb-1"
+                    style={{ fontFamily: "Google_Sans, 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif" }}
+                  >
+                    Genset ID
+                  </label>
+                  <div className="h-10 px-3 flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 text-gray-800 text-sm">
+                    <span
+                      className="text-gray-900 font-bold text-[14.5px] tracking-wide"
+                      style={{ fontFamily: "Google_Sans_Medium, 'Google Sans Medium', 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif" }}
+                    >
+                      {deliveryModalRecord.generatorId}
+                    </span>
+                    {getGeneratorPanel(deliveryModalRecord.generatorId, panels) && (
+                      <span
+                        className="text-xs font-semibold text-gray-600 bg-white border border-gray-200 px-2 py-0.5 rounded shadow-2xs"
+                        style={{ fontFamily: "Google_Sans, 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif" }}
+                      >
+                        Model: {getGeneratorPanel(deliveryModalRecord.generatorId, panels)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <label
+                    className="text-sm font-medium text-gray-700 block mb-1"
+                    style={{ fontFamily: "Google_Sans, 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif" }}
+                  >
+                    Receiver Name
+                  </label>
                   <Input
                     placeholder="Enter receiver's name"
                     value={receiverName}
                     onChange={(e) => setReceiverName(e.target.value)}
                     className="h-10 border-gray-200 bg-gray-50 focus-visible:ring-[#ff6c00]"
+                    style={{ fontFamily: "Google_Sans, 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif" }}
                     data-testid="input-receiver-name"
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1">Delivery Date</label>
+                  <label
+                    className="text-sm font-medium text-gray-700 block mb-1"
+                    style={{ fontFamily: "Google_Sans, 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif" }}
+                  >
+                    Delivery Date
+                  </label>
                   <Input
                     type="date"
                     value={deliveryDate}
                     onChange={(e) => setDeliveryDate(e.target.value)}
                     className="h-10 border-gray-200 bg-gray-50 focus-visible:ring-[#ff6c00]"
+                    style={{ fontFamily: "Google_Sans, 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif" }}
                     data-testid="input-delivery-date"
                   />
                 </div>
@@ -2290,6 +2912,7 @@ export default function Dashboard() {
                   type="button"
                   onClick={() => setDeliveryModalRecord(null)}
                   className="flex-1 h-10 text-sm font-medium"
+                  style={{ fontFamily: "Google_Sans, 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif" }}
                 >
                   Cancel
                 </Button>
@@ -2298,7 +2921,10 @@ export default function Dashboard() {
                   onClick={submitDelivery}
                   disabled={!receiverName.trim() || updateMutation.isPending}
                   className="flex-1 h-10 text-sm font-semibold text-white"
-                  style={{ background: "#ff6c00" }}
+                  style={{
+                    background: "#ff6c00",
+                    fontFamily: "Google_Sans_Medium, 'Google Sans Medium', 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif"
+                  }}
                 >
                   {updateMutation.isPending ? "Submitting..." : "Confirm Delivery"}
                 </Button>
@@ -2326,7 +2952,20 @@ export default function Dashboard() {
               className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden border border-gray-100 z-10"
             >
               <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                <h3 className="font-bold text-lg text-gray-900">Return Generator</h3>
+                <div className="flex items-center gap-2.5">
+                  <h3
+                    className="font-bold text-lg text-gray-900 tracking-tight"
+                    style={{ fontFamily: "Google_Sans, 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif" }}
+                  >
+                    Return Generator
+                  </h3>
+                  <span
+                    className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-600 border border-blue-200 tracking-wide"
+                    style={{ fontFamily: "Google_Sans_Medium, 'Google Sans Medium', 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif" }}
+                  >
+                    {returnModalRecord.generatorId}
+                  </span>
+                </div>
                 <button
                   onClick={() => setReturnModalRecord(null)}
                   className="text-gray-400 hover:text-gray-500 rounded-lg p-1 hover:bg-gray-100 transition-colors"
@@ -2336,9 +2975,41 @@ export default function Dashboard() {
               </div>
               <div className="p-6 space-y-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1.5">New Status</label>
+                  <label
+                    className="text-sm font-medium text-gray-700 block mb-1"
+                    style={{ fontFamily: "Google_Sans, 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif" }}
+                  >
+                    Genset ID
+                  </label>
+                  <div className="h-10 px-3 flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 text-gray-800 text-sm">
+                    <span
+                      className="text-gray-900 font-bold text-[14.5px] tracking-wide"
+                      style={{ fontFamily: "Google_Sans_Medium, 'Google Sans Medium', 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif" }}
+                    >
+                      {returnModalRecord.generatorId}
+                    </span>
+                    {getGeneratorPanel(returnModalRecord.generatorId, panels) && (
+                      <span
+                        className="text-xs font-semibold text-gray-600 bg-white border border-gray-200 px-2 py-0.5 rounded shadow-2xs"
+                        style={{ fontFamily: "Google_Sans, 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif" }}
+                      >
+                        Model: {getGeneratorPanel(returnModalRecord.generatorId, panels)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <label
+                    className="text-sm font-medium text-gray-700 block mb-1.5"
+                    style={{ fontFamily: "Google_Sans, 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif" }}
+                  >
+                    New Status
+                  </label>
                   <Select value={returnStatus} onValueChange={setReturnStatus}>
-                    <SelectTrigger className="h-10 bg-gray-50 border-gray-200">
+                    <SelectTrigger
+                      className="h-10 bg-gray-50 border-gray-200"
+                      style={{ fontFamily: "Google_Sans, 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif" }}
+                    >
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -2352,12 +3023,18 @@ export default function Dashboard() {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1">Return Date</label>
+                  <label
+                    className="text-sm font-medium text-gray-700 block mb-1"
+                    style={{ fontFamily: "Google_Sans, 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif" }}
+                  >
+                    Return Date
+                  </label>
                   <Input
                     type="date"
                     value={returnDate}
                     onChange={(e) => setReturnDate(e.target.value)}
                     className="h-10 border-gray-200 bg-gray-50 focus-visible:ring-[#ff6c00]"
+                    style={{ fontFamily: "Google_Sans, 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif" }}
                     data-testid="input-return-date"
                   />
                 </div>
@@ -2368,17 +3045,21 @@ export default function Dashboard() {
                   type="button"
                   onClick={() => setReturnModalRecord(null)}
                   className="flex-1 h-10 text-sm font-medium"
+                  style={{ fontFamily: "Google_Sans, 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif" }}
                 >
                   Cancel
                 </Button>
                 <Button
                   type="button"
                   onClick={submitReturn}
-                  disabled={updateMutation.isPending || !returnStatus}
+                  disabled={!returnStatus || updateMutation.isPending}
                   className="flex-1 h-10 text-sm font-semibold text-white"
-                  style={{ background: "#ff6c00" }}
+                  style={{
+                    background: "#ff6c00",
+                    fontFamily: "Google_Sans_Medium, 'Google Sans Medium', 'Google Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif"
+                  }}
                 >
-                  {updateMutation.isPending ? "Submitting..." : "Confirm Return"}
+                  {updateMutation.isPending ? "Updating..." : "Confirm Return"}
                 </Button>
               </div>
             </motion.div>

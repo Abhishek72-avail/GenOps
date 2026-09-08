@@ -16,6 +16,8 @@ export interface GeneratorRecord {
   /** @nullable */
   hours?: number | null;
   /** @nullable */
+  valveLashHrs?: string | null;
+  /** @nullable */
   remarks?: string | null;
   /** @nullable */
   deliveryStatus?: string | null;

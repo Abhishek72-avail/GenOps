@@ -12,5 +12,6 @@ export interface GeneratorInput {
   status: string;
   rating?: string;
   hours?: number;
+  valveLashHrs?: string | null;
   remarks?: string;
 }

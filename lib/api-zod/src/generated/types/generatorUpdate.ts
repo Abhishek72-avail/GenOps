@@ -12,6 +12,7 @@ export interface GeneratorUpdate {
   status?: string;
   rating?: string;
   hours?: number;
+  valveLashHrs?: string | null;
   remarks?: string;
   deliveryStatus?: string;
   /** @nullable */

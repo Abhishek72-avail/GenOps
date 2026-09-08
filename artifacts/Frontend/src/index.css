@@ -134,6 +134,42 @@
   .touch-scrolling {
     -webkit-overflow-scrolling: touch;
   }
+
+  /* Custom thin scrollbar */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #d1d5db transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 3px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: #d1d5db;
+    border-radius: 3px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: #9ca3af;
+  }
+
+  .scrollbar-thumb-gray-300 {
+    scrollbar-color: #d1d5db transparent;
+  }
+  .scrollbar-thumb-gray-300::-webkit-scrollbar-thumb {
+    background-color: #d1d5db;
+  }
+
+  /* Google typography utilities */
+  .font-google {
+    font-family: 'Google Sans', 'Google_Sans', 'Product Sans', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif;
+  }
+  .font-google-medium {
+    font-family: 'Google Sans Medium', 'Google_Sans_Medium', 'Google Sans', 'Product Sans', 'Plus Jakarta Sans Medium', 'Plus Jakarta Sans', Roboto, 'Inter', sans-serif;
+  }
 }
 
 /* Prevent auto-zoom on mobile devices when focusing input elements */

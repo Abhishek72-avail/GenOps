@@ -84,6 +84,8 @@ export interface GeneratorRecord {
   /** @nullable */
   hours?: number | null;
   /** @nullable */
+  valveLashHrs?: string | null;
+  /** @nullable */
   remarks?: string | null;
   /** @nullable */
   deliveryStatus?: string | null;
@@ -99,6 +101,7 @@ export interface GeneratorInput {
   status: string;
   rating?: string;
   hours?: number;
+  valveLashHrs?: string;
   remarks?: string;
 }
 
@@ -108,6 +111,7 @@ export interface GeneratorUpdate {
   status?: string;
   rating?: string;
   hours?: number;
+  valveLashHrs?: string;
   remarks?: string;
   deliveryStatus?: string;
   /** @nullable */

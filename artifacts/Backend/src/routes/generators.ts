@@ -86,7 +86,8 @@ router.get("/generators", async (req, res): Promise<void> => {
       or(
         ilike(generatorsTable.generatorId, `%${search}%`),
         ilike(generatorsTable.tDate, `%${search}%`),
-        ilike(generatorsTable.remarks, `%${search}%`)
+        ilike(generatorsTable.remarks, `%${search}%`),
+        ilike(generatorsTable.valveLashHrs, `%${search}%`)
       )!
     );
   }

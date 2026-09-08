@@ -11,6 +11,7 @@ export const generatorsTable = pgTable("generators", {
   status: text("status").notNull(),
   rating: text("rating"),
   hours: real("hours"),
+  valveLashHrs: text("valve_lash_hrs"),
   remarks: text("remarks"),
   deliveryStatus: text("delivery_status"),
   deliveryTo: text("delivery_to"),
