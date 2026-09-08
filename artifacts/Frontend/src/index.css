@@ -1,7 +1,19 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
+
+@font-face {
+  font-family: 'Google_Sans';
+  src: local('Google Sans'), local('Plus Jakarta Sans'), local('Inter'), sans-serif;
+  font-weight: 400 700;
+}
+
+@font-face {
+  font-family: 'Google_Sans_Medium';
+  src: local('Google Sans Medium'), local('Google Sans'), local('Plus Jakarta Sans Medium'), local('Plus Jakarta Sans'), local('Inter'), sans-serif;
+  font-weight: 500 700;
+}
 
 @custom-variant dark (&:is(.dark *));
 

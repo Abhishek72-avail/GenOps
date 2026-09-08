@@ -89,8 +89,27 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function getRgba(color: string, opacity: number): string {
+  if (color.startsWith("rgb(")) {
+    return color.replace("rgb(", "rgba(").replace(")", `, ${opacity})`);
+  }
+  if (color.startsWith("#")) {
+    const hex = color.replace("#", "");
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  }
+  return color;
+}
+
 function StatCard({
-  icon, label, value, accent, onClick, isActive,
+  icon,
+  label,
+  value,
+  accent = "rgb(255, 108, 0)",
+  onClick,
+  isActive,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -99,29 +118,63 @@ function StatCard({
   onClick?: () => void;
   isActive?: boolean;
 }) {
-  const color = accent ?? "#ff6c00";
+  const accentColor = accent;
+  const bgTint12 = getRgba(accentColor, 0.12);
+
   return (
     <div
-      className={`bg-white rounded-xl border p-3.5 sm:p-5 flex items-center gap-3 sm:gap-4 shadow-sm transition-all ${onClick ? "cursor-pointer hover:shadow-md active:scale-98" : ""}`}
-      style={{
-        borderColor: isActive ? color : "#e5e7eb",
-        boxShadow: isActive ? `0 0 0 2px ${color}33` : undefined,
-      }}
       onClick={onClick}
+      className={`relative flex items-center justify-between gap-2.5 sm:gap-3 rounded-xl border p-2.5 sm:p-3 overflow-hidden transition-all duration-200 ${
+        onClick ? "cursor-pointer hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]" : ""
+      }`}
+      style={{
+        background: `linear-gradient(145deg, #ffffff 40%, ${getRgba(accentColor, 0.05)} 75%, ${getRgba(accentColor, 0.15)} 100%)`,
+        borderColor: isActive ? accentColor : "#e5e7eb",
+        boxShadow: isActive
+          ? `0 0 0 1.5px ${accentColor}, 0 2px 10px ${getRgba(accentColor, 0.12)}`
+          : "0 1px 2px rgba(0,0,0,0.03)",
+      }}
     >
-      <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${color}18` }}>
-        <span style={{ color }}>{icon}</span>
+      {/* Left + Middle: Icon inside box + Text */}
+      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+        <div
+          className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-transform duration-200"
+          style={{ background: bgTint12 }}
+        >
+          <span style={{ color: accentColor }}>{icon}</span>
+        </div>
+
+        {/* Middle: Label on top, Value below */}
+        <div className="min-w-0 flex-1">
+          <p
+            className="text-[9.5px] sm:text-[10.5px] uppercase tracking-wider font-semibold truncate"
+            style={{
+              color: "#8A8A8A",
+              fontFamily: "Google_Sans, 'Google Sans', 'Plus Jakarta Sans', 'Inter', sans-serif",
+            }}
+          >
+            {label}
+          </p>
+          <p
+            className="text-lg sm:text-xl font-bold mt-0.5 leading-none tracking-tight truncate"
+            style={{
+              color: "#111827",
+              fontFamily: "Google_Sans_Medium, 'Google Sans Medium', 'Google Sans', 'Plus Jakarta Sans', 'Inter', sans-serif",
+            }}
+          >
+            {value}
+          </p>
+        </div>
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wide truncate" style={{ color: "#9ca3af" }}>{label}</p>
-        <p className="text-xl sm:text-2xl font-bold mt-0.5" style={{ color: "#111827" }}>{value}</p>
-      </div>
-      {onClick && (
-        <ChevronDown
-          className="w-4 h-4 transition-transform duration-200 flex-shrink-0"
-          style={{ color: "#9ca3af", transform: isActive ? "rotate(180deg)" : "rotate(0deg)" }}
-        />
-      )}
+
+      {/* Right: Small Chevron */}
+      <ChevronDown
+        className="w-3.5 h-3.5 transition-transform duration-200 flex-shrink-0 mr-0.5"
+        style={{
+          transform: isActive ? "rotate(180deg)" : "rotate(0deg)",
+          color: isActive ? accentColor : "#9ca3af",
+        }}
+      />
     </div>
   );
 }
@@ -1271,19 +1324,20 @@ export default function Dashboard() {
 
         {/* Stat cards */}
         {stats && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 w-full">
             <StatCard
-              icon={<Database className="w-5 h-5" />}
-              label="Total Records"
+              icon={<Database className="w-4 h-4 sm:w-5 sm:h-5" />}
+              accent="rgb(255, 108, 0)"
+              label="TOTAL RECORDS"
               value={stats.total}
               onClick={() => setViewMode("main")}
               isActive={viewMode === "main"}
             />
             <StatCard
-              icon={<Zap className="w-5 h-5" />}
-              label=" All Model"
+              icon={<Zap className="w-4 h-4 sm:w-5 sm:h-5" />}
+              accent="rgb(124, 58, 237)"
+              label="ALL MODEL"
               value={cpanelTotal}
-              accent="#7c3aed"
               onClick={() => {
                 setShowCPanel((v) => !v);
                 setSelectedCPanel(null);
@@ -1291,18 +1345,18 @@ export default function Dashboard() {
               isActive={showCPanel}
             />
             <StatCard
-              icon={<Truck className="w-5 h-5" />}
-              label="Current Delivery"
+              icon={<Truck className="w-4 h-4 sm:w-5 sm:h-5" />}
+              accent="rgb(8, 145, 178)"
+              label="CURRENT DELIVERY"
               value={stats.currentDelivery}
-              accent="#0891b2"
               onClick={() => setViewMode("delivery")}
               isActive={viewMode === "delivery"}
             />
             <StatCard
-              icon={<Truck className="w-5 h-5" />}
-              label="Previous Delivery"
+              icon={<Truck className="w-4 h-4 sm:w-5 sm:h-5" />}
+              accent="rgb(30, 58, 95)"
+              label="PREVIOUS DELIVERY"
               value={stats.previousDelivery}
-              accent="#1e3a5f"
               onClick={() => setViewMode("previous")}
               isActive={viewMode === "previous"}
             />
@@ -1321,10 +1375,10 @@ export default function Dashboard() {
               className="bg-white rounded-xl border border-purple-200 shadow-sm overflow-hidden"
               style={{ borderColor: "#7c3aed33" }}
             >
-              <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: "#f3f0ff", background: "#faf5ff" }}>
+              <div className="px-4 py-3 sm:px-5 sm:py-3 border-b flex items-center justify-between" style={{ borderColor: "#f3f0ff", background: "#faf5ff" }}>
                 <div>
-                  <h3 className="text-sm font-bold" style={{ color: "#7c3aed" }}>Sub-Model</h3>
-                  <p className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>Click a model to view its stats and filter the table below</p>
+                  <h3 className="text-xs sm:text-sm font-bold" style={{ color: "#7c3aed" }}>Sub-Model</h3>
+                  <p className="text-[11px] sm:text-xs mt-0.5" style={{ color: "#9ca3af" }}>Click a model to view its stats and filter the table below</p>
                 </div>
                 <Button
                   size="sm"
@@ -1334,15 +1388,16 @@ export default function Dashboard() {
                     setNewModelPrefix("");
                     setIsAddSubModelOpen(true);
                   }}
-                  className="h-8 px-3 text-xs font-semibold text-purple-600 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg flex items-center gap-1.5 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="h-7 sm:h-8 px-2.5 sm:px-3 text-xs font-semibold text-purple-600 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg flex items-center gap-1.5 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                   title={isReadOnly ? "Disabled in view-only guest session" : ""}
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Add New Model
                 </Button>
-              </div>              <div className="p-5">
-                {/* Sub-panel cards - rectangular layout matching image style */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+              </div>
+              <div className="p-3.5 sm:p-4">
+                {/* Sub-panel cards - compact, clean layout */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2.5">
                   {cpanelStats && [...cpanelStats]
                     .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: "base" }))
                     .map((panel) => (
@@ -1352,27 +1407,27 @@ export default function Dashboard() {
                       >
                         <button
                           onClick={() => setSelectedCPanel(selectedCPanel === panel.id ? null : panel.id)}
-                          className="w-full rounded-xl p-4 flex flex-col gap-2 text-left border transition-all hover:shadow-md"
+                          className="w-full rounded-lg sm:rounded-xl p-2.5 sm:p-3 flex flex-col justify-between text-left border transition-all hover:shadow-md"
                           style={{
                             borderColor: selectedCPanel === panel.id ? "#7c3aed" : "#e5e7eb",
                             background: selectedCPanel === panel.id ? "#f5f3ff" : "#ffffff",
-                            boxShadow: selectedCPanel === panel.id ? "0 0 0 2px #7c3aed33" : "0 1px 3px rgba(0,0,0,0.06)",
+                            boxShadow: selectedCPanel === panel.id ? "0 0 0 2px #7c3aed33" : "0 1px 2px rgba(0,0,0,0.04)",
                           }}
                         >
-                          <div className="min-w-0 w-full pr-10">
-                            <p className="text-sm font-bold truncate" style={{ color: selectedCPanel === panel.id ? "#7c3aed" : "#1f2937" }}>
+                          <div className="min-w-0 w-full pr-7">
+                            <p className="text-xs sm:text-sm font-bold truncate" style={{ color: selectedCPanel === panel.id ? "#7c3aed" : "#1f2937" }}>
                               {panel.id}
                             </p>
-                            <p className="text-[11px] mt-0.5 truncate" style={{ color: "#9ca3af" }}>
+                            <p className="text-[10px] mt-0.5 truncate" style={{ color: "#9ca3af" }}>
                               {panel.prefixes.join(", ")}
                             </p>
                           </div>
-                          <p className="text-2xl font-black leading-none" style={{ color: selectedCPanel === panel.id ? "#7c3aed" : "#111827" }}>
+                          <p className="text-lg sm:text-xl font-black leading-none mt-2" style={{ color: selectedCPanel === panel.id ? "#7c3aed" : "#111827" }}>
                             {panel.total}
                           </p>
                         </button>
                         {/* Edit + Delete icons - visible on hover or when selected */}
-                        <div className={`absolute top-2.5 right-2.5 flex items-center gap-0.5 transition-opacity duration-200 ${selectedCPanel === panel.id
+                        <div className={`absolute top-2 right-2 flex items-center gap-0.5 transition-opacity duration-200 ${selectedCPanel === panel.id
                           ? "opacity-100 pointer-events-auto"
                           : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
                           }`}>
@@ -1380,20 +1435,20 @@ export default function Dashboard() {
                             <>
                               <button
                                 onClick={(e) => handleOpenEditSubModel(panel, e)}
-                                className="p-1 rounded-md text-purple-400 hover:bg-purple-50 hover:text-purple-600 transition-colors"
+                                className="p-0.5 rounded text-purple-400 hover:bg-purple-50 hover:text-purple-600 transition-colors"
                                 title="Edit Model"
                               >
-                                <Edit2 className="w-3.5 h-3.5" />
+                                <Edit2 className="w-3 h-3" />
                               </button>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleDeleteSubModel(panel.id);
                                 }}
-                                className="p-1 rounded-md text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                                className="p-0.5 rounded text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
                                 title="Delete Model"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <Trash2 className="w-3 h-3" />
                               </button>
                             </>
                           )}
@@ -1413,25 +1468,25 @@ export default function Dashboard() {
                       transition={{ duration: 0.15 }}
                       className="overflow-hidden"
                     >
-                      <div className="mt-4 pt-4 border-t" style={{ borderColor: "#f3f0ff" }}>
-                        <h4 className="text-sm font-semibold mb-3" style={{ color: "#374151" }}>
+                      <div className="mt-3 pt-3 border-t" style={{ borderColor: "#f3f0ff" }}>
+                        <h4 className="text-xs sm:text-sm font-semibold mb-2.5" style={{ color: "#374151" }}>
                           {selectedPanelData.label} — Status Breakdown
                         </h4>
-                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                          <div className="rounded-xl p-4 text-center border border-gray-200" style={{ background: "#f9fafb" }}>
-                            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "#6b7280" }}>Total</p>
-                            <p className="text-2xl font-bold mt-1" style={{ color: "#111827" }}>{selectedPanelData.total}</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-2.5">
+                          <div className="rounded-lg p-2.5 sm:p-3 text-center border border-gray-200" style={{ background: "#f9fafb" }}>
+                            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide" style={{ color: "#6b7280" }}>Total</p>
+                            <p className="text-lg sm:text-xl font-bold mt-0.5" style={{ color: "#111827" }}>{selectedPanelData.total}</p>
                           </div>
                           {STATUSES.map((status) => {
                             const cfg = STATUS_CONFIG[status];
                             return (
                               <div
                                 key={status}
-                                className="rounded-xl p-4 text-center border"
+                                className="rounded-lg p-2.5 sm:p-3 text-center border"
                                 style={{ background: cfg.bg, borderColor: `${cfg.dot}44` }}
                               >
-                                <p className="text-xs font-semibold uppercase tracking-wide truncate" style={{ color: cfg.text }}>{status}</p>
-                                <p className="text-2xl font-bold mt-1" style={{ color: cfg.text }}>{selectedPanelData.byStatus[status] ?? 0}</p>
+                                <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide truncate" style={{ color: cfg.text }}>{status}</p>
+                                <p className="text-lg sm:text-xl font-bold mt-0.5" style={{ color: cfg.text }}>{selectedPanelData.byStatus[status] ?? 0}</p>
                               </div>
                             );
                           })}
@@ -2346,58 +2401,58 @@ export default function Dashboard() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden border border-gray-100 z-10"
+              className="bg-white rounded-xl shadow-xl max-w-sm sm:max-w-md w-full overflow-hidden border border-gray-100 z-10"
             >
-              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
                 <div>
-                  <h3 className="font-bold text-lg text-gray-900">Add New Sub-Model</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Define a model mapped to matching generator IDs</p>
+                  <h3 className="font-bold text-base text-gray-900">Add New Sub-Model</h3>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Define a model mapped to matching generator IDs</p>
                 </div>
                 <button
                   onClick={() => setIsAddSubModelOpen(false)}
                   className="text-gray-400 hover:text-gray-500 rounded-lg p-1 hover:bg-gray-100 transition-colors"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
               <form onSubmit={handleAddSubModelSubmit}>
-                <div className="p-6 space-y-4">
+                <div className="p-4 sm:p-5 space-y-3.5">
                   <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-1">Model Name / Number</label>
+                    <label className="text-xs font-medium text-gray-700 block mb-1">Model Name / Number</label>
                     <Input
                       required
                       placeholder="e.g. C7, C8, C9"
                       value={newModelNo}
                       onChange={(e) => setNewModelNo(e.target.value)}
-                      className="h-10 border-gray-200 bg-gray-50 focus-visible:ring-[#7c3aed]"
+                      className="h-9 text-sm border-gray-200 bg-gray-50 focus-visible:ring-[#7c3aed]"
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-1">Genset ID Prefix (Starting Characters)</label>
+                    <label className="text-xs font-medium text-gray-700 block mb-1">Genset ID Prefix (Starting Characters)</label>
                     <Input
                       required
                       placeholder="e.g. ABC XYZ or EC8, LX8"
                       value={newModelPrefix}
                       onChange={(e) => setNewModelPrefix(e.target.value)}
-                      className="h-10 border-gray-200 bg-gray-50 focus-visible:ring-[#7c3aed]"
+                      className="h-9 text-sm border-gray-200 bg-gray-50 focus-visible:ring-[#7c3aed]"
                     />
-                    <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
+                    <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
                       Make sure that whatever the Genset ID is, its starting digits or letters match one of these prefixes. You can enter multiple prefixes separated by space or comma.
                     </p>
                   </div>
                 </div>
-                <div className="p-6 bg-gray-50 border-t border-gray-100 flex gap-3">
+                <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex gap-2.5">
                   <Button
                     variant="outline"
                     type="button"
                     onClick={() => setIsAddSubModelOpen(false)}
-                    className="flex-1 h-10 text-sm font-medium"
+                    className="flex-1 h-9 text-xs sm:text-sm font-medium"
                   >
                     Cancel
                   </Button>
                   <Button
                     type="submit"
-                    className="flex-1 h-10 text-sm font-semibold text-white"
+                    className="flex-1 h-9 text-xs sm:text-sm font-semibold text-white"
                     style={{ background: "#7c3aed" }}
                   >
                     Add Model
@@ -2424,57 +2479,57 @@ export default function Dashboard() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden border border-gray-100 z-10"
+              className="bg-white rounded-xl shadow-xl max-w-sm sm:max-w-md w-full overflow-hidden border border-gray-100 z-10"
             >
-              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
                 <div>
-                  <h3 className="font-bold text-lg text-gray-900">Edit Sub-Model</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Update the model name or prefix</p>
+                  <h3 className="font-bold text-base text-gray-900">Edit Sub-Model</h3>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Update the model name or prefix</p>
                 </div>
                 <button
                   onClick={() => setIsEditSubModelOpen(false)}
                   className="text-gray-400 hover:text-gray-500 rounded-lg p-1 hover:bg-gray-100 transition-colors"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
               <form onSubmit={handleEditSubModelSubmit}>
-                <div className="p-6 space-y-4">
+                <div className="p-4 sm:p-5 space-y-3.5">
                   <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-1">Model Name / Number</label>
+                    <label className="text-xs font-medium text-gray-700 block mb-1">Model Name / Number</label>
                     <input
                       required
                       placeholder="e.g. C7, C8, C9"
                       value={editModelNo}
                       onChange={(e) => setEditModelNo(e.target.value)}
-                      className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] focus:border-transparent"
+                      className="w-full h-9 px-3 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] focus:border-transparent"
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-1">Genset ID Prefix (Starting Characters)</label>
+                    <label className="text-xs font-medium text-gray-700 block mb-1">Genset ID Prefix (Starting Characters)</label>
                     <input
                       required
                       placeholder="e.g. ABC XYZ or EC8, LX8"
                       value={editModelPrefix}
                       onChange={(e) => setEditModelPrefix(e.target.value)}
-                      className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] focus:border-transparent"
+                      className="w-full h-9 px-3 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] focus:border-transparent"
                     />
-                    <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
+                    <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
                       Make sure that whatever the Genset ID is, its starting digits or letters match one of these prefixes. You can enter multiple prefixes separated by space or comma.
                     </p>
                   </div>
                 </div>
-                <div className="p-6 bg-gray-50 border-t border-gray-100 flex gap-3">
+                <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex gap-2.5">
                   <button
                     type="button"
                     onClick={() => setIsEditSubModelOpen(false)}
-                    className="flex-1 h-10 text-sm font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors"
+                    className="flex-1 h-9 text-xs sm:text-sm font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 h-10 text-sm font-semibold text-white rounded-lg transition-colors"
+                    className="flex-1 h-9 text-xs sm:text-sm font-semibold text-white rounded-lg transition-colors"
                     style={{ background: "#7c3aed" }}
                   >
                     Save Changes
